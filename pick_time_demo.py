@@ -51,12 +51,12 @@ if __name__ == "__main__":
   metrics = AbuMetricsBase(orders_pd, action_pd, capital, benchmark);
   metrics.fit_metrics();
   metrics.plot_returns_cmp(only_show_returns = True);
-  # 4) evaluate win_rate
+  # 4) evaluate win_rate(为了计算胜率)
   win_rate = metrics.win_rate;
   gains_mean = metrics.gains_mean;
   losses_mean = -metrics.losses_mean;
   # 5) add position control
-  # n天向上突破买入策略(加入买入价格策略)
+  # n天向上突破买入策略(加入买入价格策略,加入仓位控制策略)
   buy_factors = [{'xd': 60, 'class': AbuFactorBuyBreak, 'slippage': AbuSlippageBuyMean, 'win_rate': win_rate, 'gains_mean': gains_mean, 'losses_mean': losses_mean, 'position': AbuKellyPosition},
                  {'xd': 42, 'class': AbuFactorBuyBreak, 'slippage': AbuSlippageBuyMean, 'win_rate': win_rate, 'gains_mean': gains_mean, 'losses_mean': losses_mean, 'position': AbuKellyPosition}];
   orders_pd, action_pd, _ = ABuPickTimeExecute.do_symbols_with_same_factors(['usTSLA', 'usNOAH', 'usSFUN', 'usBIDU', 'usAAPL', 'usGOOG', 'usWUBA', 'usVIPS'], benchmark, buy_factors, sell_factors, capital, show = False);
