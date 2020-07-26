@@ -2,6 +2,8 @@
 
 if __name__ == "__main__":
 
+  from abupy.CoreBu import ABuEnv;
+  ABuEnv.g_market_source = ABuEnv.EMarketSourceType.E_MARKET_SOURCE_sn_us;
   # 1) 批量选股并回测
   from abupy import AbuFactorBuyBreak; # 买入策略
   from abupy import AbuFactorSellBreak, AbuFactorAtrNStop, AbuFactorPreAtrNStop, AbuFactorCloseAtrNStop; # 卖出策略
@@ -33,6 +35,7 @@ if __name__ == "__main__":
   metrics = AbuMetricsBase(*abu_result_tuple);
   metrics.fit_metrics();
   metrics.plot_returns_cmp();
+  metrics.plot_sharp_volatility_cmp();
   # 3) add position control
   win_rate = metrics.win_rate;
   gains_mean = metrics.gains_mean;
@@ -44,3 +47,4 @@ if __name__ == "__main__":
   metrics = AbuMetricsBase(*abu_result_tuple);
   metrics.fit_metrics();
   metrics.plot_returns_cmp();
+  metrics.plot_sharp_volatility_cmp();
