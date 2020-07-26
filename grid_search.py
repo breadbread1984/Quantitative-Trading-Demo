@@ -9,7 +9,7 @@ if __name__ == "__main__":
   from abupy import AbuFactorSellBreak, AbuFactorAtrNStop, AbuFactorPreAtrNStop, AbuFactorCloseAtrNStop; # 卖出策略
   sell_break_factor_grid = {
     'class': [AbuFactorSellBreak,],
-    'xd': np.arange(20, 150, 10), # xd_range = [20, 150)
+    'xd': [120]#np.arange(20, 150, 10), # xd_range = [20, 150)
   };
   sell_atr_nstop_factor_grid = {
     'class': [AbuFactorAtrNStop,],
