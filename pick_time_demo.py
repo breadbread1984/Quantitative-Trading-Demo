@@ -77,3 +77,13 @@ if __name__ == "__main__":
   orders_pd, action_pd, all_fit_symbols = ABuPickTimeExecute.do_symbols_with_diff_factors(target_symbols, benchmark, factor_dict, capital);
   # 7) cross tab
   print(pd.crosstab(orders_pd.buy_factor, orders_pd.symbol));
+  # 8) process random picked symbols with multiple processes
+  from abupy import ABuSymbol;
+  from abupy import AbuPickTimeMaster;
+  symbols = ABuSymbol.search_to_symbol_dict('黄金');
+  print(symbols);
+  orders_pd, action_pd, _ = AbuPickTimeMaster.do_symbols_with_same_factors_process(list(symbols.keys()), benchmark, buy_factors, sell_factors, capital, n_process_kl = 10, n_process_pick_time = 8);
+  metrics = AbuMetricsBase(orders_pd, action_pd, capital, benchmark);
+  metrics.fit_metrics();
+  metrics.plot_returns_cmp(only_show_returns = True);
+  
