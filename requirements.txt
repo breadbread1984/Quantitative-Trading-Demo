@@ -19,5 +19,6 @@ pytz
 patsy
 six
 setuptools
+psutil
 abupy
 
