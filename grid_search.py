@@ -5,6 +5,7 @@ if __name__ == "__main__":
   import numpy as np;
   from abupy.CoreBu import ABuEnv;
   ABuEnv.g_market_source = ABuEnv.EMarketSourceType.E_MARKET_SOURCE_sn_us;
+  # 1) generate parameter combinations
   from abupy import AbuFactorSellBreak, AbuFactorAtrNStop, AbuFactorPreAtrNStop, AbuFactorCloseAtrNStop; # 卖出策略
   sell_break_factor_grid = {
     'class': [AbuFactorSellBreak,],
@@ -23,4 +24,10 @@ if __name__ == "__main__":
     'class': [AbuFactorCloseAtrNStop],
     'close_atr_n': np.arange(1.0, 4.0, 0.5), # close_atr_range = [1.0, 4.0)
   };
-  
+  from abupy import ABuGridHelper;
+  sell_factors_product = ABuGridHelper.gen_factor_grid(
+    ABuGridHelper.K_GEN_FACTOR_PARAMS_SELL,
+    [sell_break_factor_grid, sell_atr_nstop_factor_grid, sell_atr_pre_factor_grid, sell_atr_close_factor_grid]
+  );
+  print('combination number is {}'.format(len(sell_factors_product)));
+  # 2)
