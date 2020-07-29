@@ -47,14 +47,12 @@ if __name__ == "__main__":
   choice_symbols = ['usNOAH', 'usSFUN', 'usBIDU', 'usAAPL', 'usGOOG', 'usTSLA', 'usWUBA', 'usVIPS'];
   grid_search = GridSearch(read_cash, choice_symbols, buy_factors_product = buy_factors_product, sell_factors_product = sell_factors_product);
   scores, score_tuple_array = grid_search.fit(n_jobs = -1);
-  print(score_tuple_array);
   # 只考虑回报评分
   from abupy import WrsmScorer;
   scorer = WrsmScorer(score_tuple_array, weights = [0, 1, 0, 0]); # win_rate, returns, sharp, max_drawdown
   sfs = scorer.fit_score(); # 按照分数升序排序的结果
   print(sfs[::-1][:15]); # 打印分数top 15的参数
-  # 只考虑回报评分(和上面评分一致)
+  # 四个分数等权重(并不是最优解)
   best_score_tuple_grid = grid_search.best_score_tuple_grid;
   from abupy import AbuMetricsBase;
   AbuMetricsBase.show_general(best_score_tuple_grid.orders_pd, best_score_tuple_grid.action_pd, best_score_tuple_grid.capital, best_score_tuple_grid.benchmark);
-  
