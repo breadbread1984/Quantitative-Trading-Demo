@@ -42,9 +42,9 @@ class TushareClient:
     if interval == Interval.DAILY:
       df = self.pro.daily(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'));
     elif interval == Interval.HOUR:
-      df = self.pro.api.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '60');
+      df = self.pro.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '60');
     elif interval == Interval.MINUTE:
-      df = self.pro.api.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '1');
+      df = self.pro.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '1');
     df = df.sort_index();
 
     data: List[BarData] = [];
