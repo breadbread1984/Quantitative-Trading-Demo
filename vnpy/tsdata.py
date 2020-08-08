@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
+from datetime import datetime;
 from numpy import ndarray;
+from typing import List, Optional;
 import tushare as ts;
 from .constant import Exchange, Interval;
 from .object import BarData, HistoryRequest;
@@ -43,7 +45,7 @@ class TushareClient:
       df = self.pro.api.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '60');
     elif interval == Interval.MINUTE:
       df = self.pro.api.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '1');
-    df = data.sort_index();
+    df = df.sort_index();
 
     data: List[BarData] = [];
 
