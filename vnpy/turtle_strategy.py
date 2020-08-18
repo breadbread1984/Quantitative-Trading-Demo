@@ -88,8 +88,7 @@ class TurtleStrategy(StrategyTemplate):
         context['exit_short'], context['exit_long'] = context['am'].donchian(self.exit_window);
         context['atr_value'] = context['am'].atr(self.atr_window);
         # 头寸规模(multiplier)=(1%*资本总数)/(ATR*合约规模)
-
-        multiplier = self.capital * 0.01 / (context['atr_value'] * self.size_dict(vt_symbol));
+        multiplier = self.capital * 0.01 / (context['atr_value'] * self.size_dict[vt_symbol]);
         multiplier = int(round(multiplier, 0));
         context['multiplier'] = multiplier;
         context['stop_loss_long'] = 0;
@@ -114,19 +113,19 @@ class TurtleStrategy(StrategyTemplate):
   def update_order(self, order: OrderData):
 
     # 下单回调
-    context = self.context[order.symbol];
+    context = self.context[order.symbol + '.' + order.exchange.value];
     if order.direction == Direction.LONG:
-      if context['total_long'] >= self.max_direction_pos: return;
+      if self.total_long >= self.max_direction_pos: return;
       if context['unit'] >= self.max_product_pos: return;
     else:
-      if context['total_short'] <= -self.max_direction_pos: return;
+      if self.total_short <= -self.max_direction_pos: return;
       if context['unit'] <= -self.max_product_pos: return;
     super(TurtleStrategy, self).update_order(order);
 
   def update_trade(self, trade: TradeData):
 
     # 成交回调
-    context = self.context[trade.symbol];
+    context = self.context[trade.symbol + '.' + trade.exchange.value];
     super(TurtleStrategy, self).update_trade(trade);
     # 计算止损价格
     if trade.direction == Direction.LONG:
@@ -149,23 +148,23 @@ class TurtleStrategy(StrategyTemplate):
 
     context = self.context[vt_symbol];
     if context['unit'] < 1:
-      self.buy(price, 1 * context['multiplier'], True);
+      self.buy(vt_symbol, price, 1 * context['multiplier'], True);
     if context['unit'] < 2:
-      self.buy(price + context['atr_value'] * 0.5, 1 * context['multiplier'], True);
+      self.buy(vt_symbol, price + context['atr_value'] * 0.5, 1 * context['multiplier'], True);
     if context['unit'] < 3:
-      self.buy(price + context['atr_value'] * 1.0, 1 * context['multiplier'], True);
+      self.buy(vt_symbol, price + context['atr_value'] * 1.0, 1 * context['multiplier'], True);
     if context['unit'] < 4:
-      self.buy(price + context['atr_value'] * 1.5, 1 * context['multiplier'], True);
+      self.buy(vt_symbol, price + context['atr_value'] * 1.5, 1 * context['multiplier'], True);
 
   def send_short_orders(self, vt_symbol, price):
 
     context = self.context[vt_symbol];
     if context['unit'] > -1:
-      self.short(price, 1 * context['multiplier'], True);
+      self.short(vt_symbol, price, 1 * context['multiplier'], True);
     if context['unit'] > -2:
-      self.short(price - context['atr_value'] * 0.5, 1 * context['multiplier'], True);
+      self.short(vt_symbol, price - context['atr_value'] * 0.5, 1 * context['multiplier'], True);
     if context['unit'] > -3:
-      self.short(price - context['atr_value'] * 1.0, 1 * context['multiplier'], True);
+      self.short(vt_symbol, price - context['atr_value'] * 1.0, 1 * context['multiplier'], True);
     if context['unit'] > -4:
-      self.short(price - context['atr_value'] * 1.5, 1 * context['multiplier'], True);
+      self.short(vt_symbol, price - context['atr_value'] * 1.5, 1 * context['multiplier'], True);
 

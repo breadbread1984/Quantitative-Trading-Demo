@@ -13,7 +13,7 @@ def main():
   engine = BacktestingEngine();
   engine.set_parameters(
     vt_symbols = vt_symbols,
-    interval = Interval.MINUTE,
+    interval = Interval.DAILY,
     start = datetime(2014,1,1),
     end = datetime(2016,8,8),
     rates = {
@@ -48,7 +48,7 @@ def main():
   engine.run_backtesting();
   df = engine.calculate_result();
   engine.calculate_statistics();
-  engine.show_char();
+  engine.show_chart();
 
 if __name__ == "__main__":
 
