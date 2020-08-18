@@ -4,18 +4,23 @@ from datetime import datetime;
 from typing import List, Dict;
 from vnpy.app.portfolio_strategy import StrategyTemplate, StrategyEngine;
 from vnpy.trader.utility import BarGenerator, ArrayManager;
-from vnpy.trader.object import TickData, BarData;
+from vnpy.trader.object import TickData, BarData, OrderData, TradeData;
 from vnpy.trader.constant import Direction, Offset;
 
 class TurtleStrategy(StrategyTemplate):
 
   # 合约->合约规模：一手>合约的美元价格
-  size_dict = {'IF99': 300, 'I99': 100, 'CU99': 5, 'TA99': 5};
+  size_dict = {'IF99.CFFEX': 300, 'I99.DCE': 100, 'CU99.SHFE': 5, 'TA99.CZCE': 5};
   entry_window = 55;
   exit_window = 20;
   atr_window = 20;
   max_product_pos = 4; # 最大仓位
   max_direction_pos = 10; # 最大仓量
+  # NOTE: the following line is valid only when you use a real ctp account
+  capital = 1000000; #self.strategy_engine.main_engine.get_account('breadbread1984');
+
+  parameters = ['capital', 'entry_window', 'exit_window', 'atr_window', 'max_product_pos', 'max_direction_pos', 'size_dict'];
+  variables = []
 
   def __init__(self, strategy_engine: StrategyEngine, strategy_name: str, vt_symbols: List[str], setting: dict):
 
@@ -74,7 +79,7 @@ class TurtleStrategy(StrategyTemplate):
       context = self.context[vt_symbol];
       bar = bars[vt_symbol];
       # 检查array manager是否收集足够的数据
-      context['am'].update_bar(bar):
+      context['am'].update_bar(bar);
       if not context['am'].inited: continue;
       # 1) 空仓的情况下更新价格阈值
       if not self.get_pos(vt_symbol):
@@ -82,15 +87,14 @@ class TurtleStrategy(StrategyTemplate):
         context['exit_short'], context['exit_long'] = context['am'].donchian(self.exit_window);
         context['atr_value'] = context['am'].atr(self.atr_window);
         # 头寸规模(multiplier)=(1%*资本总数)/(ATR*合约规模)
-        # NOTE: the following line is valid only when you use a real ctp account
-        capital = self.strategy_engine.main_engine.get_account('breadbread1984');
-        multiplier = capital * 0.01 / (context['atr_value'] * self.size_dict(vt_symbol));
+
+        multiplier = self.capital * 0.01 / (context['atr_value'] * self.size_dict(vt_symbol));
         multiplier = int(round(multiplier, 0));
         context['multiplier'] = multiplier;
         context['stop_loss_long'] = 0;
         context['stop_loss_short'] = 0;
       # 2) 加仓（开仓）/平仓
-      if not self.get_pos(vt_symbol);
+      if not self.get_pos(vt_symbol):
         # 开多/空仓二选一
         self.send_buy_orders(vt_symbol, context['entry_long']);
         self.send_short_orders(vt_symbol, context['entry_short']);
