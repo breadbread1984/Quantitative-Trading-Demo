@@ -13,7 +13,7 @@ class TushareClient:
 
     self.inited: bool = False;
     self.symbols: ndarray = None;
-    self.ex = {Exchange.SSE: 'SH', Exchange.SZSE: 'SZ', Exchange.SHFE: 'SHF', Exchange.CZCE: 'ZCE'};
+    self.ex = {Exchange.SHFE: 'SHF', Exchange.CZCE: 'ZCE', Exchange.CFFEX: 'CFX', Exchange.DCE: 'DCE', Exchange.INE: 'INE'};
 
   def init(self) -> bool:
 
@@ -40,11 +40,11 @@ class TushareClient:
       return None;
 
     if interval == Interval.DAILY:
-      df = self.pro.daily(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'));
+      df = self.pro.fut_daily(ts_code = self.to_ts_symbol(symbol, exchange), asset = 'FT', start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'));
     elif interval == Interval.HOUR:
-      df = self.pro.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '60');
-    elif interval == Interval.MINUTE:
-      df = self.pro.stk_mins(ts_code = self.to_ts_symbol(symbol, exchange), start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '1');
+      df = self.pro.ft_mins(ts_code = self.to_ts_symbol(symbol, exchange), asset = 'FT', start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '60min');
+    else:
+      df = self.pro.ft_mins(ts_code = self.to_ts_symbol(symbol, exchange), asset = 'FT', start_date = start.strftime('%Y%m%d'), end_date = end.strftime('%Y%m%d'), freq = '1min');
     df = df.sort_index();
 
     data: List[BarData] = [];

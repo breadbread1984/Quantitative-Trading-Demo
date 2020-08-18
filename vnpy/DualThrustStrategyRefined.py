@@ -18,7 +18,7 @@ class DualThrustStrategyRefined(DualThrustStrategy):
 
   def onBar(self, bar):
 
-    self.bg.updateBar(bar);
+    self.bg.update_bar(bar);
 
   def on_5min_bar(self, bar):
 

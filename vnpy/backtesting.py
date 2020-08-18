@@ -49,7 +49,7 @@ def main():
   engine = BacktestingEngine(); # 创建回测引擎
   engine.set_parameters(
     vt_symbol = 'IF88.CFFEX', # 设置交易品种
-    interval = '1m', # 按分钟模拟
+    interval = Interval.MINUTE, # 按分钟模拟
     start = datetime(2017,8,8), # 回测起始时间
     end = datetime(2020,8,8), # 数据库中最近的日期
     rate = 0.5 / 10000, # 手续费率
@@ -62,7 +62,7 @@ def main():
   #engine.add_strategy(AtrRsiStrategy, {'atrLength': 11});
   #engine.add_strategy(DoubleMaStrategy, {'fast_window': 10, 'slow_window': 20});
   engine.add_strategy(DualThrustStrategyRefined, {'k1': 0.4, 'k2': 0.7, 'fixed_size': 1});
-  # 3) 参数优化
+  # 2) 参数优化
    # target is at app/ct_strategy/backtesting.py
   setting = OptimizationSetting();
   setting.set_target('sharpe_ratio');
@@ -77,10 +77,8 @@ def main():
   # 4) 结果
   engine.calculate_result();
   statistics = engine.calculate_statistics(output = True);
-  '''
-  for result in engine.get_all_daily_results():
-    print(result.date, "净盈亏:" + str(result.net_pnl), "总净盈亏：" + str(result.holding_pnl));
-  '''
+  engine.show_chart();
+  daily_result = engine.get_all_daily_results();
 
 if __name__ == "__main__":
 
