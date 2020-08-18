@@ -15,7 +15,7 @@ def main():
     vt_symbols = vt_symbols,
     interval = Interval.MINUTE,
     start = datetime(2014,1,1),
-    end = datetime(2020,8,8),
+    end = datetime(2016,8,8),
     rates = {
       'IF99.CFFEX': 3/100000,
       'I99.DCE': 6/100000,
@@ -44,7 +44,6 @@ def main():
   );
 
   engine.add_strategy(TurtleStrategy, {'captial': 1000000});
-  
   engine.load_data();
   engine.run_backtesting();
   df = engine.calculate_result();

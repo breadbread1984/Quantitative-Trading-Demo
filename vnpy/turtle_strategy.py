@@ -77,6 +77,7 @@ class TurtleStrategy(StrategyTemplate):
     self.cancel_all();
     for vt_symbol in self.vt_symbols:
       context = self.context[vt_symbol];
+      if vt_symbol not in bars: continue;
       bar = bars[vt_symbol];
       # 检查array manager是否收集足够的数据
       context['am'].update_bar(bar);
