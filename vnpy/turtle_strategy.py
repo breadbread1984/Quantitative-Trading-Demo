@@ -87,6 +87,7 @@ class TurtleStrategy(StrategyTemplate):
         context['entry_long'], context['entry_short'] = context['am'].donchian(self.entry_window);
         context['exit_short'], context['exit_long'] = context['am'].donchian(self.exit_window);
         context['atr_value'] = context['am'].atr(self.atr_window);
+        if context['atr_value'] == 0: continue;
         # 头寸规模(multiplier)=(1%*资本总数)/(ATR*合约规模)
         multiplier = self.capital * 0.01 / (context['atr_value'] * self.size_dict[vt_symbol]);
         multiplier = int(round(multiplier, 0));
