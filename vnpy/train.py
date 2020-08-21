@@ -16,8 +16,9 @@ import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.constant import Interval, Exchange;
 from vnpy.trader.rqdata import rqdata_client;
-from vnpy.trader.object import HistoryRequest;
+from vnpy.trader.object import HistoryRequest, TickData, BarData, TradeData, OrderData;
 from vnpy.trader.database import database_manager;
+from vnpy.app.cta_strategy.base import StopOrder;
 from vnpy.app.cta_strategy.backtesting import BacktestingEngine;
 
 interval = Interval.DAILY;
@@ -37,9 +38,10 @@ class AgentStrategy(CtaTemplate):
     action_spec,
     optimizer= optimizer,
     actor_net = actor_net,
+    value_net = value_net,
     normalize_observations = True,
     normalize_rewards = False,
-    use_gea = True,
+    use_gae = True,
     num_epochs = 1
   );
   if exists('checkpoints'):
@@ -141,12 +143,6 @@ def get_fut_info(futs):
 
 if __name__ == "__main__":
 
-  if not rqdata_client.inited:
-    print('用账户(%s)登录米筐' % (rqdata_client.username));
-    succeed = rqdata_client.init();
-    if False == succeed:
-      print('米筐登录失败');
-      exit(1);
   '''
   futures = {
     Exchange.CFFEX: ['IF99','IC99','IH99','T99','TF99','TS99',],
@@ -214,7 +210,13 @@ if __name__ == "__main__":
   };
 
   if not exists('info.pkl'):
-    info = get_fut_info(futures);
+    if not rqdata_client.inited:
+      print('用账户(%s)登录米筐' % (rqdata_client.username));
+      succeed = rqdata_client.init();
+      if False == succeed:
+        print('米筐登录失败');
+        exit(1);
+      info = get_fut_info(futures);
     with open('info.pkl', 'wb') as f:
       f.write(pickle.dumps(info));
   else:
