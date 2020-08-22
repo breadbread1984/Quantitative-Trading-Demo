@@ -98,7 +98,7 @@ class PPOStrategy(CtaTemplate):
     if not self.am.inited: return;
     # collect yesterday's trades to inference yesterday's result
     daily_result = DailyResult((bar.datetime - timedelta(days = 1)).date(), self.am.close()[1]); # yesterday's close price
-    for trade in self.cta_engine.trades.values();
+    for trade in self.cta_engine.trades.values():
       trade_date = trade.datetime.date();
       if (bar.datetime - timedelta(days = 1)).date() == trade_date:
         daily_result.add_trade(trade);
@@ -292,6 +292,7 @@ if __name__ == "__main__":
         if symbol not in info:
           print('symbol: ' + symbol + '没有找到数据');
           continue;
+        # backtesting
         engine.set_parameters(
           vt_symbol = symbol + "." + exchange.value,
           interval = interval,
