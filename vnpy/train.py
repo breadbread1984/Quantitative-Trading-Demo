@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 
 from os.path import exists;
-from datetime import time, timedelta;
+from datetime import datetime, time, timedelta;
+from time import sleep;
 import re;
 import pickle;
 import numpy as np;
@@ -16,12 +17,14 @@ import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.constant import Interval, Exchange;
 from vnpy.trader.rqdata import rqdata_client;
+from vnpy.trader.tsdata import tsdata_client;
 from vnpy.trader.object import HistoryRequest, TickData, BarData, TradeData, OrderData;
 from vnpy.trader.database import database_manager;
 from vnpy.app.cta_strategy.base import StopOrder;
 from vnpy.app.cta_strategy.backtesting import BacktestingEngine;
 
 interval = Interval.DAILY;
+data_source = "TS";
 
 class AgentStrategy(CtaTemplate):
 
@@ -113,6 +116,7 @@ class AgentStrategy(CtaTemplate):
 def get_fut_info(futs):
 
   global interval;
+  global data_source;
   fee = {'IF': 0.23/10000, 'IC': 0.23/10000, 'IH': 0.23/10000, 'T': 3, 'TF': 3, 'TS': 3,
          'SC': 20, 'RB': 1/10000, 'HC': 1/10000, 'NI': 6, 'CU': 0.5/10000, 'ZN': 3, 'AL': 3, 'SN': 1, 'PB': 0.4/10000, 'AU': 10, 'AG': 0.5/10000, 'WR': 0.4/10000, 'RU': 0.45/10000, 'BU': 1/10000, 'FU': 0.5/10000,
          'I': 0.6/10000, 'J': 0.6/10000, 'JM': 0.6/10000, 'BB': 1/10000, 'FB': 1/10000, 'V': 2, 'C': 0.2, 'CS': 1.5, 'A': 2, 'B': 2, 'L': 2, 'M': 0.2, 'P': 2.5, 'Y': 2.5, 'PP': 0.6/10000, 'JD': 1.5/10000,
@@ -126,13 +130,35 @@ def get_fut_info(futs):
     for symbol in symbols:
       results = p.search(symbol);
       prefix = results.group(1);
-      match = df.loc[df['symbol'].str.startswith(prefix)].iloc[0];
-      data = database_manager.load_bar_data(symbol = symbo, exchange = exchange, interval = interval, start = datatime(2009, 1, 1), end = datetime(2020,8,15));
+      matches = df.loc[df['symbol'].str.startswith(prefix)];
+      if len(matches) == 0:
+        print('symbol: ' + symbol + '没有找到info数据');
+        continue;
+      match = matches.iloc[0];
+      data = database_manager.load_bar_data(symbol = symbol, exchange = exchange, interval = interval, start = datetime(2009, 1, 1), end = datetime(2020,8,15));
       if len(data) == 0:
+        print('下载' + symbol + '数据');
         req = HistoryRequest(symbol = symbol, exchange = exchange, interval = interval, start = datetime(2009,1,1), end = datetime(2020,8,15));
-        data = rqdata_client.query_history(req);
+        if data_source == 'RQ':
+          if not rqdata_client.inited:
+            print('用账户(%s)登录米筐' % (rqdata_client.username));
+            succeed = rqdata_client.init();
+            if False == succeed:
+              print('米筐登录失败');
+              exit(1);
+          data = rqdata_client.query_history(req);
+        else:
+          if not tsdata_client.inited:
+            print('登录tushare');
+            succeed = tsdata_client.init();
+            if False == succeed:
+              print('tushare登录失败');
+              exit(1);
+          data = tsdata_client.query_history(req);
+          sleep(3);
+        database_manager.save_bar_data(data);
         if data is None or len(data) == 0:
-          print('symbol: ' + symbol + '没有找到数据');
+          print('symbol: ' + symbol + '没有找到bar数据');
           continue;
       info[symbol] = {'rate': fee[prefix], 
                       'size': float(match['per_unit']), 
@@ -210,13 +236,7 @@ if __name__ == "__main__":
   };
 
   if not exists('info.pkl'):
-    if not rqdata_client.inited:
-      print('用账户(%s)登录米筐' % (rqdata_client.username));
-      succeed = rqdata_client.init();
-      if False == succeed:
-        print('米筐登录失败');
-        exit(1);
-      info = get_fut_info(futures);
+    info = get_fut_info(futures);
     with open('info.pkl', 'wb') as f:
       f.write(pickle.dumps(info));
   else:
@@ -227,6 +247,9 @@ if __name__ == "__main__":
   for i in range(100):
     for exchange, symbols in futures.items():
       for symbol in symbols:
+        if symbol not in info:
+          print('symbol: ' + symbol + '没有找到数据');
+          continue;
         engine.set_parameters(
           vt_symbol = symbol + "." + exchange.value,
           interval = interval,
