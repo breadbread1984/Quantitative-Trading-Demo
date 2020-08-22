@@ -71,9 +71,9 @@ class PPOStrategy(CtaTemplate):
     self.load_bar(1);
     self.policy_state = self.agent.policy.get_initial_state(1);
     self.pos_history = list();
-    self.last_date = None;
     self.last_action = None;
     self.last_ts = None;
+    self.replay_buffer.clear();
 
   def on_start(self):
 
@@ -113,7 +113,11 @@ class PPOStrategy(CtaTemplate):
     # create time step
     status = tf.constant([bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos], dtype = tf.float32);
     reward = daily_result.net_pnl;
-    ts = TimeStep(, reward, 0.98, status); #TODO:step type
+    if self.last_ts is None:
+      step_type = StepType.FIRST;
+    else:
+      step_type = StepType.MID;
+    ts = TimeStep(step_type, reward, 0.98, status);
     action = self.agent.policy.action(ts, self.policy_state);
     if self.last_ts is not None:
       traj = trajectory.from_transition(self.last_ts, self.last_action, ts);
@@ -134,7 +138,6 @@ class PPOStrategy(CtaTemplate):
     elif action[0] == 5:
       pass;
     self.policy_state = action.state;
-    self.last_date = bar.datetime.date();
     self.last_action = action;
     self.last_ts = ts;
     self.put_event();
@@ -303,9 +306,12 @@ if __name__ == "__main__":
           inverse = False);
         engine.load_data();
         engine.run_backtesting();
-        daily_result = engine.get_all_daily_results();
-        # TODO: update policy
-        
+        # update policy
+        ts = engine.strategy.last_ts;
+        ts.step_type = StepType.LAST;
+        ts.reward = 0;
+        traj = trajectory.from_transition(engine.strategy.last_ts, 5, ts);
+        engine.strategy.replay_buffer.add_batch(traj);
+        engine.strategy.agent.train(experience = engine.strategy.replay_buffer.gather_all());
         saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
         saver.save('checkpoints/policy');
-          
