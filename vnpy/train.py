@@ -10,35 +10,36 @@ import tensorflow as tf;
 from tf_agents.networks.actor_distribution_rnn_network import ActorDistributionRnnNetwork;
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork;
 from tf_agents.agents.ppo import ppo_agent;
-from tf_agents.trajectories.time_step import time_step_spec;
+from tf_agents.trajectories.time_step import TimeStep, StepType, time_step_spec;
 from tf_agents.specs.tensor_spec import TensorSpec, BoundedTensorSpec;
 from tf_agents.policies import policy_saver;
 import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.constant import Interval, Exchange;
 from vnpy.trader.rqdata import rqdata_client;
-from vnpy.trader.tsdata import tsdata_client;
+from tsdata import tsdata_client;
 from vnpy.trader.object import HistoryRequest, TickData, BarData, TradeData, OrderData;
 from vnpy.trader.database import database_manager;
 from vnpy.app.cta_strategy.base import StopOrder;
-from vnpy.app.cta_strategy.backtesting import BacktestingEngine;
+from vnpy.app.cta_strategy.backtesting import BacktestingEngine, BacktestingMode, DailyResult;
 
 interval = Interval.DAILY;
+download_missing_data = False;
 data_source = "TS";
 
 class AgentStrategy(CtaTemplate):
 
   optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = 1e-3);
   # observation = (volume, open interest, open price, close price, high price, low price,)
-  obs_spec = TensorSpec([6], dtype = tf.float32, name = 'observation');
+  obs_spec = TensorSpec([7], dtype = tf.float32, name = 'observation');
   reward_spec = TensorSpec([], dtype = tf.float32, name = 'reward');
   # action = {long: 0, short: 1, sell: 2, cover: 3, close: 4, none: 5}
   action_spec = BoundedTensorSpec([1], dtype = tf.float32, minimum = 0, maximum = 5, name = 'action');
   actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
   value_net = ValueRnnNetwork(obs_spec);
   agent = ppo_agent.PPOAgent(
-    time_step_spec(observation_spec = obs_spec, reward_spec = reward_spec),
-    action_spec,
+    time_step_spec = time_step_spec(obs_spec),
+    action_spec = action_spec,
     optimizer= optimizer,
     actor_net = actor_net,
     value_net = value_net,
@@ -55,13 +56,15 @@ class AgentStrategy(CtaTemplate):
 
     super(AgentStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
-    self.am = ArrayManager();
+    self.am = ArrayManager(3); # the day before yesterday, yesterday and today's bar
 
   def on_init(self):
 
     self.write_log('策略初始化');
     self.load_bar(1);
     self.policy_state = self.agent.policy.get_initial_state(1);
+    self.pos_history = list();
+    self.last_date = None;
 
   def on_start(self):
 
@@ -80,8 +83,29 @@ class AgentStrategy(CtaTemplate):
   def on_bar(self, bar: BarData):
 
     self.cancel_all();
-    status = tf.constant([bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price], dtype = tf.float32);
-    action = self.agent.policy.action(status,self.policy_state);
+    self.am.update_bar(bar);
+    self.pos_history.append(self.pos);
+    if len(self.pos_history) > 3: self.pos_history.pop(0);
+    if not self.am.inited: return;
+    # collect yesterday's trades to inference yesterday's result
+    daily_result = DailyResult((bar.datetime - timedelta(days = 1)).date(), self.am.close()[1]); # yesterday's close price
+    for trade in self.cta_engine.trades.values();
+      trade_date = trade.datetime.date();
+      if (bar.datetime - timedelta(days = 1)).date() == trade_date:
+        daily_result.add_trade(trade);
+    # get yesterday's pnl
+    daily_result.calculate_pnl(
+      self.am.close()[0], # the day before yesterday's close
+      self.pos_history[1], # yesterday's start pos
+      self.cta_engine.size,
+      self.cta_engine.rate,
+      self.cta_engine.slippage,
+      self.cta_engine.inverse);
+    # create time step
+    status = tf.constant([bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos], dtype = tf.float32);
+    reward = daily_result.net_pnl;
+    ts = TimeStep(, reward, 0.98, status); #TODO:step type
+    action = self.agent.policy.action(ts, self.policy_state);
     # FIXME: 每天收盘之前平仓
     if action[0] == 0 and self.pos >= 0:
       self.buy(bar.close_price, 1, True);
@@ -100,6 +124,7 @@ class AgentStrategy(CtaTemplate):
       pass;
     self.policy_state = action.state;
     self.put_event();
+    self.last_date = bar.datetime.date();
 
   def on_trade(self, trade: TradeData):
 
@@ -116,6 +141,7 @@ class AgentStrategy(CtaTemplate):
 def get_fut_info(futs):
 
   global interval;
+  global download_missing_data;
   global data_source;
   fee = {'IF': 0.23/10000, 'IC': 0.23/10000, 'IH': 0.23/10000, 'T': 3, 'TF': 3, 'TS': 3,
          'SC': 20, 'RB': 1/10000, 'HC': 1/10000, 'NI': 6, 'CU': 0.5/10000, 'ZN': 3, 'AL': 3, 'SN': 1, 'PB': 0.4/10000, 'AU': 10, 'AG': 0.5/10000, 'WR': 0.4/10000, 'RU': 0.45/10000, 'BU': 1/10000, 'FU': 0.5/10000,
@@ -136,7 +162,7 @@ def get_fut_info(futs):
         continue;
       match = matches.iloc[0];
       data = database_manager.load_bar_data(symbol = symbol, exchange = exchange, interval = interval, start = datetime(2009, 1, 1), end = datetime(2020,8,15));
-      if len(data) == 0:
+      if len(data) == 0 and download_missing_data:
         print('下载' + symbol + '数据');
         req = HistoryRequest(symbol = symbol, exchange = exchange, interval = interval, start = datetime(2009,1,1), end = datetime(2020,8,15));
         if data_source == 'RQ':
@@ -157,9 +183,9 @@ def get_fut_info(futs):
           data = tsdata_client.query_history(req);
           sleep(3);
         database_manager.save_bar_data(data);
-        if data is None or len(data) == 0:
-          print('symbol: ' + symbol + '没有找到bar数据');
-          continue;
+      if data is None or len(data) == 0:
+        print('symbol: ' + symbol + '没有找到bar数据');
+        continue;
       info[symbol] = {'rate': fee[prefix], 
                       'size': float(match['per_unit']), 
                       'pricetick': float(match['quote_unit_desc'][:-len(match['quote_unit'])]), 
@@ -243,7 +269,7 @@ if __name__ == "__main__":
     with open('info.pkl', 'rb') as f:
       info = pickle.loads(f.read());
   engine = BacktestingEngine();
-  engine.add_strategy(AgentStrategy);
+  engine.add_strategy(AgentStrategy, {});
   for i in range(100):
     for exchange, symbols in futures.items():
       for symbol in symbols:

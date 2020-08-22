@@ -4,8 +4,8 @@ from datetime import datetime;
 from numpy import ndarray;
 from typing import List, Optional;
 import tushare as ts;
-from .constant import Exchange, Interval;
-from .object import BarData, HistoryRequest;
+from vnpy.trader.constant import Exchange, Interval;
+from vnpy.trader.object import BarData, HistoryRequest;
 
 class TushareClient:
 
