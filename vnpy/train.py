@@ -13,6 +13,7 @@ from tf_agents.agents.ppo import ppo_agent;
 from tf_agents.trajectories.time_step import TimeStep, StepType, time_step_spec;
 from tf_agents.specs.tensor_spec import TensorSpec, BoundedTensorSpec;
 from tf_agents.policies import policy_saver;
+from tf_agents.replay_buffers import tf_uniform_replay_buffer; # replay buffer
 import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.constant import Interval, Exchange;
@@ -27,7 +28,7 @@ interval = Interval.DAILY;
 download_missing_data = False;
 data_source = "TS";
 
-class AgentStrategy(CtaTemplate):
+class PPOStrategy(CtaTemplate):
 
   optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = 1e-3);
   # observation = (volume, open interest, open price, close price, high price, low price,)
@@ -48,13 +49,19 @@ class AgentStrategy(CtaTemplate):
     use_gae = True,
     num_epochs = 1
   );
+  # replay buffer
+  replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+    agent.collect_data_spec,
+    batch_size = 1,
+    max_length = 1000000
+  );
   if exists('checkpoints'):
     agent.policy = tf.compat.v2.saved_model.load('checkpoints/policy');
   agent.initialize();
   
   def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
 
-    super(AgentStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
+    super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
     self.am = ArrayManager(3); # the day before yesterday, yesterday and today's bar
 
@@ -65,6 +72,8 @@ class AgentStrategy(CtaTemplate):
     self.policy_state = self.agent.policy.get_initial_state(1);
     self.pos_history = list();
     self.last_date = None;
+    self.last_action = None;
+    self.last_ts = None;
 
   def on_start(self):
 
@@ -106,7 +115,9 @@ class AgentStrategy(CtaTemplate):
     reward = daily_result.net_pnl;
     ts = TimeStep(, reward, 0.98, status); #TODO:step type
     action = self.agent.policy.action(ts, self.policy_state);
-    # FIXME: 每天收盘之前平仓
+    if self.last_ts is not None:
+      traj = trajectory.from_transition(self.last_ts, self.last_action, ts);
+      self.replay_buffer.add_batch(traj);
     if action[0] == 0 and self.pos >= 0:
       self.buy(bar.close_price, 1, True);
     elif action[0] == 1 and self.pos <= 0:
@@ -123,8 +134,10 @@ class AgentStrategy(CtaTemplate):
     elif action[0] == 5:
       pass;
     self.policy_state = action.state;
-    self.put_event();
     self.last_date = bar.datetime.date();
+    self.last_action = action;
+    self.last_ts = ts;
+    self.put_event();
 
   def on_trade(self, trade: TradeData):
 
@@ -269,7 +282,7 @@ if __name__ == "__main__":
     with open('info.pkl', 'rb') as f:
       info = pickle.loads(f.read());
   engine = BacktestingEngine();
-  engine.add_strategy(AgentStrategy, {});
+  engine.add_strategy(PPOStrategy, {});
   for i in range(100):
     for exchange, symbols in futures.items():
       for symbol in symbols:
