@@ -35,7 +35,7 @@ class PPOStrategy(CtaTemplate):
   # observation = (volume, open interest, open price, close price, high price, low price,)
   obs_spec = TensorSpec([7], dtype = tf.float32, name = 'observation');
   # action = {long: 0, short: 1, sell: 2, cover: 3, close: 4, none: 5}
-  action_spec = BoundedTensorSpec([1], dtype = tf.float32, minimum = 0, maximum = 5, name = 'action');
+  action_spec = BoundedTensorSpec([1], dtype = tf.int32, minimum = 0, maximum = 5, name = 'action');
   actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
   value_net = ValueRnnNetwork(obs_spec);
   agent = ppo_agent.PPOAgent(
@@ -71,9 +71,7 @@ class PPOStrategy(CtaTemplate):
     self.load_bar(1);
     self.policy_state = self.agent.policy.get_initial_state(1);
     self.pos_history = list();
-    self.last_action = None;
-    self.last_ts = None;
-    self.replay_buffer.clear();
+    self.history = {'step_type': list(), 'reward': list(), 'discount': list(), 'observation': list(), 'action': list()};
 
   def on_start(self):
 
@@ -114,7 +112,7 @@ class PPOStrategy(CtaTemplate):
     # status.shape = batch x time x 7
     status = tf.constant([[[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]]], dtype = tf.float32);
     reward = daily_result.net_pnl;
-    if self.last_ts is None:
+    if len(self.history['step_type']) == 0:
       step_type = StepType.FIRST;
     else:
       step_type = StepType.MID;
@@ -123,27 +121,27 @@ class PPOStrategy(CtaTemplate):
     # discount.shape = batch x time
     ts = TimeStep(tf.constant([[step_type]], dtype = tf.int32), tf.constant([[reward]], dtype = tf.float32), tf.constant([[0.98]], dtype = tf.float32), status);
     action = self.agent.policy.action(ts, self.policy_state);
-    if self.last_ts is not None:
-      traj = trajectory.from_transition(self.last_ts, self.last_action, ts);
-      self.replay_buffer.add_batch(traj);
-    if action[0] == 0 and self.pos >= 0:
+    self.history['step_type'].append(step_type);
+    self.history['reward'].append(reward);
+    self.history['discount'].append(0.98);
+    self.history['observation'].append(status);
+    self.history['action'].append([action.action[0,0,0]]);
+    if action.action[0,0,0] == 0 and self.pos >= 0:
       self.buy(bar.close_price, 1, True);
-    elif action[0] == 1 and self.pos <= 0:
+    elif action.action[0,0,0] == 1 and self.pos <= 0:
       self.short(bar.close_price, 1, True);
-    elif action[0] == 2 and self.pos > 0:
+    elif action.action[0,0,0] == 2 and self.pos > 0:
       self.sell(bar.close_price, 1, True);
-    elif action[0] == 3 and self.pos < 0:
+    elif action.action[0,0,0] == 3 and self.pos < 0:
       self.cover(bar.close_price, 1, True);
-    elif action[0] == 4 and self.pos != 0:
+    elif action.action[0,0,0] == 4 and self.pos != 0:
       if self.pos > 0:
         self.sell(bar.close_price, abs(self.pos), True);
       if self.pos < 0:
         self.cover(bar.close_price, abs(self.pos), True);
-    elif action[0] == 5:
+    elif action.action[0,0,0] == 5:
       pass;
     self.policy_state = action.state;
-    self.last_action = action;
-    self.last_ts = ts;
     self.put_event();
 
   def on_trade(self, trade: TradeData):
@@ -312,9 +310,15 @@ if __name__ == "__main__":
         engine.load_data();
         engine.run_backtesting();
         # update policy
-        ts = TimeStep(tf.constant([[StepType.LAST]], dtype = tf.int32), tf.constant([[0]], dtype = tf.float32), tf.constant([[0.98]], dtype = tf.float32), engine.strategy.last_ts.observation);
-        traj = trajectory.from_transition(engine.strategy.last_ts, 5, ts);
-        engine.strategy.replay_buffer.add_batch(traj);
-        engine.strategy.agent.train(experience = engine.strategy.replay_buffer.gather_all());
+        history = engine.strategy.history;
+        history['step_type'][-1] = StepType.LAST;
+        experience = trajectory.Trajectory(tf.constant([history['step_type']]),
+                                           tf.constant([history['observation']]),
+                                           tf.constant([history['action']]),
+                                           #TODO: policy_info,
+                                           tf.constant([history['step_type']]),
+                                           tf.constant([history['reward']]),
+                                           tf.constant([history['discount']]));
+        engine.strategy.agent.train(experience = experience);
         saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
         saver.save('checkpoints/policy');
