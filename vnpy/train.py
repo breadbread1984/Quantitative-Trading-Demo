@@ -12,17 +12,18 @@ from tf_agents.networks.value_rnn_network import ValueRnnNetwork;
 from tf_agents.agents.ppo import ppo_agent;
 from tf_agents.trajectories.time_step import TimeStep, StepType, time_step_spec;
 from tf_agents.specs.tensor_spec import TensorSpec, BoundedTensorSpec;
+from tf_agents.trajectories import trajectory;
 from tf_agents.policies import policy_saver;
 from tf_agents.replay_buffers import tf_uniform_replay_buffer; # replay buffer
 import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.constant import Interval, Exchange;
 from vnpy.trader.rqdata import rqdata_client;
-from tsdata import tsdata_client;
 from vnpy.trader.object import HistoryRequest, TickData, BarData, TradeData, OrderData;
 from vnpy.trader.database import database_manager;
 from vnpy.app.cta_strategy.base import StopOrder;
 from vnpy.app.cta_strategy.backtesting import BacktestingEngine, BacktestingMode, DailyResult;
+from tsdata import tsdata_client;
 
 interval = Interval.DAILY;
 download_missing_data = False;
@@ -33,7 +34,6 @@ class PPOStrategy(CtaTemplate):
   optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = 1e-3);
   # observation = (volume, open interest, open price, close price, high price, low price,)
   obs_spec = TensorSpec([7], dtype = tf.float32, name = 'observation');
-  reward_spec = TensorSpec([], dtype = tf.float32, name = 'reward');
   # action = {long: 0, short: 1, sell: 2, cover: 3, close: 4, none: 5}
   action_spec = BoundedTensorSpec([1], dtype = tf.float32, minimum = 0, maximum = 5, name = 'action');
   actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
@@ -97,27 +97,31 @@ class PPOStrategy(CtaTemplate):
     if len(self.pos_history) > 3: self.pos_history.pop(0);
     if not self.am.inited: return;
     # collect yesterday's trades to inference yesterday's result
-    daily_result = DailyResult((bar.datetime - timedelta(days = 1)).date(), self.am.close()[1]); # yesterday's close price
+    daily_result = DailyResult((bar.datetime - timedelta(days = 1)).date(), self.am.close[1]); # yesterday's close price
     for trade in self.cta_engine.trades.values():
       trade_date = trade.datetime.date();
       if (bar.datetime - timedelta(days = 1)).date() == trade_date:
         daily_result.add_trade(trade);
     # get yesterday's pnl
     daily_result.calculate_pnl(
-      self.am.close()[0], # the day before yesterday's close
+      self.am.close[0], # the day before yesterday's close
       self.pos_history[1], # yesterday's start pos
       self.cta_engine.size,
       self.cta_engine.rate,
       self.cta_engine.slippage,
       self.cta_engine.inverse);
     # create time step
-    status = tf.constant([bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos], dtype = tf.float32);
+    # status.shape = batch x time x 7
+    status = tf.constant([[[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]]], dtype = tf.float32);
     reward = daily_result.net_pnl;
     if self.last_ts is None:
       step_type = StepType.FIRST;
     else:
       step_type = StepType.MID;
-    ts = TimeStep(step_type, reward, 0.98, status);
+    # step_type.shape = batch x time
+    # reward.shape = batch x time
+    # discount.shape = batch x time
+    ts = TimeStep(tf.constant([[step_type]], dtype = tf.int32), tf.constant([[reward]], dtype = tf.float32), tf.constant([[0.98]], dtype = tf.float32), status);
     action = self.agent.policy.action(ts, self.policy_state);
     if self.last_ts is not None:
       traj = trajectory.from_transition(self.last_ts, self.last_action, ts);
@@ -308,9 +312,7 @@ if __name__ == "__main__":
         engine.load_data();
         engine.run_backtesting();
         # update policy
-        ts = engine.strategy.last_ts;
-        ts.step_type = StepType.LAST;
-        ts.reward = 0;
+        ts = TimeStep(tf.constant([[StepType.LAST]], dtype = tf.int32), tf.constant([[0]], dtype = tf.float32), tf.constant([[0.98]], dtype = tf.float32), engine.strategy.last_ts.observation);
         traj = trajectory.from_transition(engine.strategy.last_ts, 5, ts);
         engine.strategy.replay_buffer.add_batch(traj);
         engine.strategy.agent.train(experience = engine.strategy.replay_buffer.gather_all());
