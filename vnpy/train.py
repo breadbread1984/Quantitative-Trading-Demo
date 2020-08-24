@@ -71,7 +71,9 @@ class PPOStrategy(CtaTemplate):
     self.load_bar(1);
     self.policy_state = self.agent.policy.get_initial_state(1);
     self.pos_history = list();
-    self.history = {'step_type': list(), 'reward': list(), 'discount': list(), 'observation': list(), 'action': list()};
+    self.history = {'step_type': list(), 'reward': list(), 'observation': list(), 'action': list()};
+    self.replay_buffer.clear();
+    self.one_before_last_ts = None;
 
   def on_start(self):
 
@@ -111,21 +113,26 @@ class PPOStrategy(CtaTemplate):
     # create time step
     # status.shape = batch x time x 7
     status = tf.constant([[[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]]], dtype = tf.float32);
-    reward = daily_result.net_pnl;
+    last_reward = daily_result.net_pnl;
     if len(self.history['step_type']) == 0:
       step_type = StepType.FIRST;
     else:
       step_type = StepType.MID;
     # step_type.shape = batch x time
     # reward.shape = batch x time
-    # discount.shape = batch x time
-    ts = TimeStep(tf.constant([[step_type]], dtype = tf.int32), tf.constant([[reward]], dtype = tf.float32), tf.constant([[0.98]], dtype = tf.float32), status);
-    action = self.agent.policy.action(ts, self.policy_state);
-    self.history['step_type'].append(step_type);
-    self.history['reward'].append(reward);
-    self.history['discount'].append(0.98);
-    self.history['observation'].append(status);
-    self.history['action'].append([action.action[0,0,0]]);
+    # last_ts = (step_type_{t-1}, reward_{t-1}, discount_{t-1}, status_{t-1})
+    last_ts = TimeStep(
+      step_type = tf.constant([[self.history['step_type'][-1]]], dtype = tf.int32), 
+      reward = tf.constant([[last_reward]], dtype = tf.float32),
+      discount = tf.constant([[0.98]], dtype = tf.float32), 
+      observation = self.history['observation'][-1]);
+    if self.one_before_last_ts is not None:
+      self.replay_buffer.add_batch(trajectory.from_transition(self.one_before_last_ts, self.history['action'][-1], last_ts));
+    action = self.agent.policy.action(last_ts, self.policy_state);
+    self.history['step_type'].append(step_type); # step_type_t
+    self.history['reward'].append(last_reward); # reward_{t-1}
+    self.history['observation'].append(status); # status_t
+    self.history['action'].append(action); # action_t
     if action.action[0,0,0] == 0 and self.pos >= 0:
       self.buy(bar.close_price, 1, True);
     elif action.action[0,0,0] == 1 and self.pos <= 0:
@@ -142,6 +149,7 @@ class PPOStrategy(CtaTemplate):
     elif action.action[0,0,0] == 5:
       pass;
     self.policy_state = action.state;
+    self.one_before_last_ts = last_ts;
     self.put_event();
 
   def on_trade(self, trade: TradeData):
@@ -310,15 +318,6 @@ if __name__ == "__main__":
         engine.load_data();
         engine.run_backtesting();
         # update policy
-        history = engine.strategy.history;
-        history['step_type'][-1] = StepType.LAST;
-        experience = trajectory.Trajectory(tf.constant([history['step_type']]),
-                                           tf.constant([history['observation']]),
-                                           tf.constant([history['action']]),
-                                           #TODO: policy_info,
-                                           tf.constant([history['step_type']]),
-                                           tf.constant([history['reward']]),
-                                           tf.constant([history['discount']]));
-        engine.strategy.agent.train(experience = experience);
+        engine.strategy.agent.train(experience = engine.strategy.replay_buffer.gather_all());
         saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
         saver.save('checkpoints/policy');
