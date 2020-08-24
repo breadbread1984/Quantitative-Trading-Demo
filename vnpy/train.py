@@ -70,10 +70,10 @@ class PPOStrategy(CtaTemplate):
     self.write_log('策略初始化');
     self.load_bar(1);
     self.policy_state = self.agent.policy.get_initial_state(1);
-    self.pos_history = list();
-    self.history = {'step_type': list(), 'reward': list(), 'observation': list(), 'action': list()};
+    self.pos_history = list(); # yesterday's and today's bar
+    self.history = {'reward': list(), 'observation': list(), 'action': list()};
     self.replay_buffer.clear();
-    self.one_before_last_ts = None;
+    self.last_ts = None;
 
   def on_start(self):
 
@@ -94,9 +94,9 @@ class PPOStrategy(CtaTemplate):
     self.cancel_all();
     self.am.update_bar(bar);
     self.pos_history.append(self.pos);
-    if len(self.pos_history) > 3: self.pos_history.pop(0);
+    if len(self.pos_history) > 2: self.pos_history.pop(0);
     if not self.am.inited: return;
-    # collect yesterday's trades to inference yesterday's result
+    # collect yesterday's trades to inference reward_{t-1}
     daily_result = DailyResult((bar.datetime - timedelta(days = 1)).date(), self.am.close[1]); # yesterday's close price
     for trade in self.cta_engine.trades.values():
       trade_date = trade.datetime.date();
@@ -105,34 +105,31 @@ class PPOStrategy(CtaTemplate):
     # get yesterday's pnl
     daily_result.calculate_pnl(
       self.am.close[0], # the day before yesterday's close
-      self.pos_history[1], # yesterday's start pos
+      self.pos_history[0], # yesterday's start pos
       self.cta_engine.size,
       self.cta_engine.rate,
       self.cta_engine.slippage,
       self.cta_engine.inverse);
     # create time step
     # status.shape = batch x time x 7
-    status = tf.constant([[[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]]], dtype = tf.float32);
-    last_reward = daily_result.net_pnl;
-    if len(self.history['step_type']) == 0:
-      step_type = StepType.FIRST;
-    else:
-      step_type = StepType.MID;
+    status = [bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]; # status_t
+    self.history['observation'].append(status);
+    last_reward = daily_result.net_pnl; # reward_{t-1}
+    self.history['reward'].append(last_reward);
     # step_type.shape = batch x time
     # reward.shape = batch x time
-    # last_ts = (step_type_{t-1}, reward_{t-1}, discount_{t-1}, status_{t-1})
-    last_ts = TimeStep(
-      step_type = tf.constant([[self.history['step_type'][-1]]], dtype = tf.int32), 
-      reward = tf.constant([[last_reward]], dtype = tf.float32),
-      discount = tf.constant([[0.98]], dtype = tf.float32), 
-      observation = self.history['observation'][-1]);
-    if self.one_before_last_ts is not None:
-      self.replay_buffer.add_batch(trajectory.from_transition(self.one_before_last_ts, self.history['action'][-1], last_ts));
-    action = self.agent.policy.action(last_ts, self.policy_state);
-    self.history['step_type'].append(step_type); # step_type_t
-    self.history['reward'].append(last_reward); # reward_{t-1}
-    self.history['observation'].append(status); # status_t
-    self.history['action'].append(action); # action_t
+    # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
+    ts = TimeStep(
+      step_type = tf.constant([[StepType.FIRST if len(self.history['observation']) == 1 else StepType.MID]], dtype = tf.int32), 
+      reward = tf.constant([[self.history['reward'][-1]]], dtype = tf.float32),
+      discount = tf.constant([[0.98]], dtype = tf.float32),
+      observation = tf.constant([[self.history['observation'][-1]]], dtype = tf.float32));
+    if self.last_ts is not None:
+      # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
+      self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.history['action'][-1], ts));
+    action = self.agent.policy.action(ts, self.policy_state); # action_t
+    self.history['action'].append(action);
+    self.last_ts = ts;
     if action.action[0,0,0] == 0 and self.pos >= 0:
       self.buy(bar.close_price, 1, True);
     elif action.action[0,0,0] == 1 and self.pos <= 0:
@@ -149,7 +146,6 @@ class PPOStrategy(CtaTemplate):
     elif action.action[0,0,0] == 5:
       pass;
     self.policy_state = action.state;
-    self.one_before_last_ts = last_ts;
     self.put_event();
 
   def on_trade(self, trade: TradeData):
@@ -302,6 +298,8 @@ if __name__ == "__main__":
         if symbol not in info:
           print('symbol: ' + symbol + '没有找到数据');
           continue;
+        else:
+          print('symbol: ' + symbol + '载入数据');
         # backtesting
         engine.set_parameters(
           vt_symbol = symbol + "." + exchange.value,
@@ -318,6 +316,7 @@ if __name__ == "__main__":
         engine.load_data();
         engine.run_backtesting();
         # update policy
-        engine.strategy.agent.train(experience = engine.strategy.replay_buffer.gather_all());
+        experience = engine.strategy.replay_buffer.gather_all();
+        engine.strategy.agent.train(experience = experience);
         saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
         saver.save('checkpoints/policy');
