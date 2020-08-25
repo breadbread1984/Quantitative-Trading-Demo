@@ -68,7 +68,7 @@ class PPOStrategy(CtaTemplate):
   def on_init(self):
 
     self.write_log('策略初始化');
-    self.load_bar(1);
+    self.load_bar(len(self.cta_engine.history_data));
     self.policy_state = self.agent.policy.get_initial_state(1);
     self.pos_history = list(); # yesterday's and today's bar
     self.history = {'reward': list(), 'observation': list(), 'action': list()};
@@ -120,13 +120,18 @@ class PPOStrategy(CtaTemplate):
     # reward.shape = batch x time
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
-      step_type = tf.constant([[StepType.FIRST if len(self.history['observation']) == 1 else StepType.MID]], dtype = tf.int32), 
-      reward = tf.constant([[self.history['reward'][-1]]], dtype = tf.float32),
-      discount = tf.constant([[0.98]], dtype = tf.float32),
-      observation = tf.constant([[self.history['observation'][-1]]], dtype = tf.float32));
+      step_type = tf.constant(StepType.FIRST if len(self.history['observation']) == 1 else StepType.MID, dtype = tf.int32), 
+      reward = tf.constant(self.history['reward'][-1], dtype = tf.float32),
+      discount = tf.constant(0.98, dtype = tf.float32),
+      observation = tf.constant(self.history['observation'][-1], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
-      self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.history['action'][-1], ts));
+      items = trajectory.from_transition(self.last_ts, self.history['action'][-1], ts);
+      try:
+        self.replay_buffer.add_batch(items);
+      except Exception as e:
+        print(e);
+        exit(1)
     action = self.agent.policy.action(ts, self.policy_state); # action_t
     self.history['action'].append(action);
     self.last_ts = ts;
