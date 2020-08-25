@@ -33,13 +33,14 @@ class PPOStrategy(CtaTemplate):
 
   optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = 1e-3);
   # observation = (volume, open interest, open price, close price, high price, low price,)
-  obs_spec = TensorSpec([7], dtype = tf.float32, name = 'observation');
+  obs_spec = TensorSpec((7,), dtype = tf.float32, name = 'observation');
   # action = {long: 0, short: 1, sell: 2, cover: 3, close: 4, none: 5}
-  action_spec = BoundedTensorSpec([1], dtype = tf.int32, minimum = 0, maximum = 5, name = 'action');
+  action_spec = BoundedTensorSpec((1,), dtype = tf.int32, minimum = 0, maximum = 5, name = 'action');
+  reward_spec = TensorSpec((), dtype = tf.float32, name = 'reward');
   actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
   value_net = ValueRnnNetwork(obs_spec);
   agent = ppo_agent.PPOAgent(
-    time_step_spec = time_step_spec(obs_spec),
+    time_step_spec = time_step_spec(obs_spec, reward_spec),
     action_spec = action_spec,
     optimizer= optimizer,
     actor_net = actor_net,
@@ -120,35 +121,31 @@ class PPOStrategy(CtaTemplate):
     # reward.shape = batch x time
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
-      step_type = tf.constant(StepType.FIRST if len(self.history['observation']) == 1 else StepType.MID, dtype = tf.int32), 
-      reward = tf.constant(self.history['reward'][-1], dtype = tf.float32),
-      discount = tf.constant(0.98, dtype = tf.float32),
-      observation = tf.constant(self.history['observation'][-1], dtype = tf.float32));
+      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else StepType.MID], dtype = tf.int32), 
+      reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32),
+      discount = tf.constant([0.98], dtype = tf.float32),
+      observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       items = trajectory.from_transition(self.last_ts, self.history['action'][-1], ts);
-      try:
-        self.replay_buffer.add_batch(items);
-      except Exception as e:
-        print(e);
-        exit(1)
+      self.replay_buffer.add_batch(items);
     action = self.agent.policy.action(ts, self.policy_state); # action_t
     self.history['action'].append(action);
     self.last_ts = ts;
-    if action.action[0,0,0] == 0 and self.pos >= 0:
+    if action.action[0, 0] == 0 and self.pos >= 0:
       self.buy(bar.close_price, 1, True);
-    elif action.action[0,0,0] == 1 and self.pos <= 0:
+    elif action.action[0, 0] == 1 and self.pos <= 0:
       self.short(bar.close_price, 1, True);
-    elif action.action[0,0,0] == 2 and self.pos > 0:
+    elif action.action[0, 0] == 2 and self.pos > 0:
       self.sell(bar.close_price, 1, True);
-    elif action.action[0,0,0] == 3 and self.pos < 0:
+    elif action.action[0, 0] == 3 and self.pos < 0:
       self.cover(bar.close_price, 1, True);
-    elif action.action[0,0,0] == 4 and self.pos != 0:
+    elif action.action[0, 0] == 4 and self.pos != 0:
       if self.pos > 0:
         self.sell(bar.close_price, abs(self.pos), True);
       if self.pos < 0:
         self.cover(bar.close_price, abs(self.pos), True);
-    elif action.action[0,0,0] == 5:
+    elif action.action[0, 0] == 5:
       pass;
     self.policy_state = action.state;
     self.put_event();
