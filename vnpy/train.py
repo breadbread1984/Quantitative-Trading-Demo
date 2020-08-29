@@ -35,8 +35,8 @@ class PPOStrategy(CtaTemplate):
   optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = 1e-3);
   # observation = (volume, open interest, open price, close price, high price, low price,)
   obs_spec = TensorSpec((7,), dtype = tf.float32, name = 'observation');
-  # action = {long: 0, short: 1, sell: 2, cover: 3, close: 4, none: 5}
-  action_spec = BoundedTensorSpec((1,), dtype = tf.int32, minimum = 0, maximum = 5, name = 'action');
+  # action = {long/cover: 0, short/sell: 1, close: 2, none: 3}
+  action_spec = BoundedTensorSpec((1,), dtype = tf.int32, minimum = 0, maximum = 3, name = 'action');
   reward_spec = TensorSpec((), dtype = tf.float32, name = 'reward');
   actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
   value_net = ValueRnnNetwork(obs_spec);
@@ -120,20 +120,26 @@ class PPOStrategy(CtaTemplate):
     action = self.agent.policy.action(ts, self.policy_state); # action_t
     self.history['action'].append([action.action[0,0].numpy()]);
     self.last_ts = ts;
-    if action.action[0, 0] == 0 and self.pos >= 0:
-      self.buy(bar.close_price, 1, True);
-    elif action.action[0, 0] == 1 and self.pos <= 0:
-      self.short(bar.close_price, 1, True);
-    elif action.action[0, 0] == 2 and self.pos > 0:
-      self.sell(bar.close_price, 1, True);
-    elif action.action[0, 0] == 3 and self.pos < 0:
-      self.cover(bar.close_price, 1, True);
-    elif action.action[0, 0] == 4 and self.pos != 0:
+    if action.action[0, 0] == 0:
+      if self.pos >= 0:
+        # long
+        self.buy(bar.close_price, 1, True);
+      else:
+        # cover
+        self.cover(bar.close_price, abs(self.pos), True);
+    elif action.action[0, 0] == 1:
+      if self.pos <= 0:
+        # short
+        self.short(bar.close_price, 1, True);
+      else:
+        # sell
+        self.sell(bar.close_price, abs(self.pos), True);
+    elif action.action[0, 0] == 2 and self.pos != 0:
       if self.pos > 0:
         self.sell(bar.close_price, abs(self.pos), True);
       if self.pos < 0:
         self.cover(bar.close_price, abs(self.pos), True);
-    elif action.action[0, 0] == 5:
+    elif action.action[0, 0] == 3:
       pass;
     self.policy_state = action.state;
     self.put_event();
@@ -324,7 +330,7 @@ if __name__ == "__main__":
         );
         actions = tf.constant([engine.strategy.history['action']], dtype = tf.int32);
         policy_info = {
-          'dist_params': {'logits': tf.constant([[[[1./6,1./6,1./6,1./6,1./6,1./6]]] * length], dtype = tf.float32)}
+          'dist_params': {'logits': tf.constant([[[[1./4,1./4,1./4,1./4]]] * length], dtype = tf.float32)}
         };
         experience = trajectory.Trajectory(time_steps.step_type, time_steps.observation, actions, policy_info, 
                                            time_steps.step_type, time_steps.reward, time_steps.discount);
