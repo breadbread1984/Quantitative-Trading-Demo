@@ -313,6 +313,7 @@ if __name__ == "__main__":
           inverse = False);
         engine.load_data();
         engine.run_backtesting();
+        statistics = engine.calculate_statistics(output = True);
         # update policy
         length = len(engine.strategy.history['observation']);
         time_steps = TimeStep(
