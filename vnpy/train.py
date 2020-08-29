@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from os.path import exists;
+from os.path import exists, join;
 from datetime import datetime, time, timedelta;
 from time import sleep;
 import re;
@@ -15,6 +15,7 @@ from tf_agents.specs.tensor_spec import TensorSpec, BoundedTensorSpec;
 from tf_agents.trajectories import trajectory;
 from tf_agents.policies import policy_saver;
 from tf_agents.replay_buffers import tf_uniform_replay_buffer; # replay buffer
+from tf_agents.utils.common import Checkpointer;
 import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.constant import Interval, Exchange;
@@ -50,8 +51,6 @@ class PPOStrategy(CtaTemplate):
     use_gae = True,
     num_epochs = 1
   );
-  if exists('checkpoints'):
-    agent.policy = tf.compat.v2.saved_model.load('checkpoints/policy');
   agent.initialize();
   
   def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
@@ -283,6 +282,14 @@ if __name__ == "__main__":
       info = pickle.loads(f.read());
   engine = BacktestingEngine();
   engine.add_strategy(PPOStrategy, {});
+  checkpointer = Checkpointer(
+    ckpt_dir = 'checkpoints',
+    max_to_keep = 1,
+    agent = engine.strategy.agent,
+    policy = engine.strategy.agent.policy,
+    global_step = tf.compat.v1.train.get_or_create_global_step()
+  );
+  checkpointer.initialize_or_restore();
   for i in range(100):
     for exchange, symbols in futures.items():
       for symbol in symbols:
@@ -322,5 +329,6 @@ if __name__ == "__main__":
                                            time_steps.step_type, time_steps.reward, time_steps.discount);
         engine.strategy.agent.preprocess_sequence(experience);
         engine.strategy.agent.train(experience = experience);
-        saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
-        saver.save('checkpoints/policy');
+        checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
+  saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
+  saver.save('final_policy');
