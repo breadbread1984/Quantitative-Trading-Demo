@@ -50,12 +50,6 @@ class PPOStrategy(CtaTemplate):
     use_gae = True,
     num_epochs = 1
   );
-  # replay buffer
-  replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
-    agent.collect_data_spec,
-    batch_size = 1,
-    max_length = 1000000
-  );
   if exists('checkpoints'):
     agent.policy = tf.compat.v2.saved_model.load('checkpoints/policy');
   agent.initialize();
@@ -73,7 +67,6 @@ class PPOStrategy(CtaTemplate):
     self.policy_state = self.agent.policy.get_initial_state(1);
     self.pos_history = list(); # yesterday's and today's bar
     self.history = {'reward': list(), 'observation': list(), 'action': list()};
-    self.replay_buffer.clear();
     self.last_ts = None;
 
   def on_start(self):
@@ -125,12 +118,8 @@ class PPOStrategy(CtaTemplate):
       reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32),
       discount = tf.constant([0.98], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
-    if self.last_ts is not None:
-      # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
-      items = trajectory.from_transition(self.last_ts, self.history['action'][-1], ts);
-      self.replay_buffer.add_batch(items);
     action = self.agent.policy.action(ts, self.policy_state); # action_t
-    self.history['action'].append(action);
+    self.history['action'].append([action.action[0,0].numpy()]);
     self.last_ts = ts;
     if action.action[0, 0] == 0 and self.pos >= 0:
       self.buy(bar.close_price, 1, True);
@@ -318,7 +307,20 @@ if __name__ == "__main__":
         engine.load_data();
         engine.run_backtesting();
         # update policy
-        experience = engine.strategy.replay_buffer.gather_all();
+        length = len(engine.strategy.history['observation']);
+        time_steps = TimeStep(
+          step_type = tf.constant([[StepType.MID.tolist()] * length], dtype = tf.int32),
+          reward = tf.constant([engine.strategy.history['reward']], dtype = tf.float32),
+          discount = tf.constant([[0.98] * length], dtype = tf.float32),
+          observation = tf.constant([engine.strategy.history['observation']], dtype = tf.float32)
+        );
+        actions = tf.constant([engine.strategy.history['action']], dtype = tf.int32);
+        policy_info = {
+          'dist_params': {'logits': tf.constant([[[0.0]] * length], dtype = tf.float32)}
+        };
+        experience = trajectory.Trajectory(time_steps.step_type, time_steps.observation, actions, policy_info, 
+                                           time_steps.step_type, time_steps.reward, time_steps.discount);
+        engine.strategy.agent.preprocess_sequence(experience);
         engine.strategy.agent.train(experience = experience);
         saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
         saver.save('checkpoints/policy');
