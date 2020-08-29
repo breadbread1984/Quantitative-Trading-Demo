@@ -316,7 +316,7 @@ if __name__ == "__main__":
         );
         actions = tf.constant([engine.strategy.history['action']], dtype = tf.int32);
         policy_info = {
-          'dist_params': {'logits': tf.constant([[[[0.,0.,0.,0.,0.,0.]]] * length], dtype = tf.float32)}
+          'dist_params': {'logits': tf.constant([[[[1./6,1./6,1./6,1./6,1./6,1./6]]] * length], dtype = tf.float32)}
         };
         experience = trajectory.Trajectory(time_steps.step_type, time_steps.observation, actions, policy_info, 
                                            time_steps.step_type, time_steps.reward, time_steps.discount);
