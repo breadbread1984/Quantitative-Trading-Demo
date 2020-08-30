@@ -113,7 +113,7 @@ class PPOStrategy(CtaTemplate):
     # reward.shape = batch x time
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
-      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else StepType.MID], dtype = tf.int32), 
+      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() else StepType.MID)], dtype = tf.int32), 
       reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32),
       discount = tf.constant([0.98], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));

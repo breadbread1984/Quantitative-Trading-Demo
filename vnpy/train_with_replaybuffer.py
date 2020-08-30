@@ -92,7 +92,6 @@ class PPOStrategy(CtaTemplate):
 
   def on_bar(self, bar: BarData):
 
-    print(bar.datetime.strftime('%Y-%m-%d'))
     self.cancel_all();
     self.am.update_bar(bar);
     self.pos_history.append(self.pos);
@@ -122,10 +121,10 @@ class PPOStrategy(CtaTemplate):
     # reward.shape = batch x time
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
-      step_type = tf.constant([[StepType.FIRST if len(self.history['observation']) == 1 else StepType.MID]], dtype = tf.int32), 
-      reward = tf.constant([[self.history['reward'][-1]]], dtype = tf.float32),
-      discount = tf.constant([[0.98]], dtype = tf.float32),
-      observation = tf.constant([[self.history['observation'][-1]]], dtype = tf.float32));
+      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() else StepType.MID)], dtype = tf.int32), 
+      reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32),
+      discount = tf.constant([0.98], dtype = tf.float32),
+      observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.history['action'][-1], ts));
@@ -326,7 +325,6 @@ if __name__ == "__main__":
           mode = BacktestingMode.BAR,
           inverse = False);
         engine.load_data();
-        print('start_date: ' + info[symbol]['start_date'].strftime('%Y-%m-%d') + '\nend_date: ' + info[symbol]['end_date'].strftime('%Y-%m-%d'));
         engine.run_backtesting();
         engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
