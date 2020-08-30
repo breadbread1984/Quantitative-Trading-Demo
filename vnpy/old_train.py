@@ -332,7 +332,7 @@ if __name__ == "__main__":
         # update policy
         experience = engine.strategy.replay_buffer.gather_all();
         loss = engine.strategy.agent.train(experience = experience);
-        print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss));
+        print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
         checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
   saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
   saver.save('final_policy');
