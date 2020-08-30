@@ -46,7 +46,7 @@ class PPOStrategy(CtaTemplate):
     actor_net = actor_net,
     value_net = value_net,
     normalize_observations = True,
-    normalize_rewards = True,
+    normalize_rewards = False,
     use_gae = True,
     num_epochs = 1
   );
@@ -123,7 +123,7 @@ class PPOStrategy(CtaTemplate):
     ts = TimeStep(
       step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() else StepType.MID)], dtype = tf.int32), 
       reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32),
-      discount = tf.constant([0.98], dtype = tf.float32),
+      discount = tf.constant([1.], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
