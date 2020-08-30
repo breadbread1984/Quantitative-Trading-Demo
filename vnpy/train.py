@@ -121,26 +121,22 @@ class PPOStrategy(CtaTemplate):
     self.history['action'].append([action.action[0,0].numpy()]);
     self.last_ts = ts;
     if action.action[0, 0] == 0:
-      if self.pos >= 0:
-        # long
+      if self.pos >= 0: # long
         self.buy(bar.close_price, 1, True);
-      else:
-        # cover
+      else: # cover
         self.cover(bar.close_price, abs(self.pos), True);
     elif action.action[0, 0] == 1:
-      if self.pos <= 0:
-        # short
+      if self.pos <= 0: # short
         self.short(bar.close_price, 1, True);
-      else:
-        # sell
+      else: # sell
         self.sell(bar.close_price, abs(self.pos), True);
     elif action.action[0, 0] == 2 and self.pos != 0:
-      if self.pos > 0:
+      if self.pos > 0: # sell
         self.sell(bar.close_price, abs(self.pos), True);
-      if self.pos < 0:
+      if self.pos < 0: # cover
         self.cover(bar.close_price, abs(self.pos), True);
     elif action.action[0, 0] == 3:
-      pass;
+      pass; # do nothing
     self.policy_state = action.state;
     self.put_event();
 
