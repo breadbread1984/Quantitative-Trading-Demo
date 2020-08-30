@@ -47,7 +47,7 @@ class PPOStrategy(CtaTemplate):
     actor_net = actor_net,
     value_net = value_net,
     normalize_observations = True,
-    normalize_rewards = False,
+    normalize_rewards = True,
     use_gae = True,
     num_epochs = 1
   );
@@ -117,7 +117,7 @@ class PPOStrategy(CtaTemplate):
       reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32),
       discount = tf.constant([0.98], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
-    action = self.agent.policy.action(ts, self.policy_state); # action_t
+    action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
     self.history['action'].append([action.action[0,0].numpy()]);
     self.last_ts = ts;
     if action.action[0, 0] == 0:

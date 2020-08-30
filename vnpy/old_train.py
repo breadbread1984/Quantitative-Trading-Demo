@@ -46,7 +46,7 @@ class PPOStrategy(CtaTemplate):
     actor_net = actor_net,
     value_net = value_net,
     normalize_observations = True,
-    normalize_rewards = False,
+    normalize_rewards = True,
     use_gae = True,
     num_epochs = 1
   );
@@ -69,10 +69,10 @@ class PPOStrategy(CtaTemplate):
   def on_init(self):
 
     self.write_log('策略初始化');
-    self.load_bar(1);
+    self.load_bar(len(self.cta_engine.history_data));
     self.policy_state = self.agent.policy.get_initial_state(1);
     self.pos_history = list(); # yesterday's and today's bar
-    self.history = {'reward': list(), 'observation': list(), 'action': list(), 'policy_info': list()};
+    self.history = {'reward': list(), 'observation': list(), 'action': list()};
     self.replay_buffer.clear();
     self.last_ts = None;
 
@@ -92,6 +92,7 @@ class PPOStrategy(CtaTemplate):
 
   def on_bar(self, bar: BarData):
 
+    print(bar.datetime.strftime('%Y-%m-%d'))
     self.cancel_all();
     self.am.update_bar(bar);
     self.pos_history.append(self.pos);
@@ -128,9 +129,8 @@ class PPOStrategy(CtaTemplate):
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.history['action'][-1], ts));
-    action = self.agent.policy.action(ts, self.policy_state); # action_t
+    action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
     self.history['action'].append(action);
-    self.history['policy_info'].append(self.agent.policy.distribution(ts, self.policy_state));
     self.last_ts = ts;
     if action.action[0, 0] == 0:
       if self.pos >= 0: # long
@@ -326,6 +326,7 @@ if __name__ == "__main__":
           mode = BacktestingMode.BAR,
           inverse = False);
         engine.load_data();
+        print('start_date: ' + info[symbol]['start_date'].strftime('%Y-%m-%d') + '\nend_date: ' + info[symbol]['end_date'].strftime('%Y-%m-%d'));
         engine.run_backtesting();
         engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
