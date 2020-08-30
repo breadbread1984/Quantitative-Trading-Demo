@@ -332,7 +332,8 @@ if __name__ == "__main__":
         experience = trajectory.Trajectory(time_steps.step_type, time_steps.observation, actions, policy_info, 
                                            time_steps.step_type, time_steps.reward, time_steps.discount);
         engine.strategy.agent.preprocess_sequence(experience);
-        engine.strategy.agent.train(experience = experience);
+        loss = engine.strategy.agent.train(experience = experience);
+        print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss));
         checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
   saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
   saver.save('final_policy');
