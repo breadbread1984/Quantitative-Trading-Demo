@@ -319,11 +319,12 @@ if __name__ == "__main__":
           inverse = False);
         engine.load_data();
         engine.run_backtesting();
+        engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
         # update policy
         length = len(engine.strategy.history['observation']);
         time_steps = TimeStep(
-          step_type = tf.constant([[StepType.FIRST.tolist(),] + [StepType.MID.tolist()] * (length - 2) + [StepType.LAST.tolist()]], dtype = tf.int32),
+          step_type = tf.constant([[StepType.FIRST.tolist(),] + [StepType.MID.tolist(),] * (length - 2) + [StepType.LAST.tolist(),]], dtype = tf.int32),
           reward = tf.constant([engine.strategy.history['reward']], dtype = tf.float32),
           discount = tf.constant([[0.98] * length], dtype = tf.float32),
           observation = tf.constant([engine.strategy.history['observation']], dtype = tf.float32)
