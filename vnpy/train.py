@@ -330,6 +330,9 @@ if __name__ == "__main__":
         statistics = engine.calculate_statistics(output = True);
         # update policy
         experience = engine.strategy.replay_buffer.gather_all();
+        if experience.step_type.shape[1] < 3:
+          print('experience is too short skipped current one');
+          continue;
         loss = engine.strategy.agent.train(experience = experience);
         print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
         checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
