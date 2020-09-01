@@ -56,8 +56,6 @@ class PPOStrategy(CtaTemplate):
     batch_size = 1,
     max_length = 1000000
   );
-  if exists('checkpoints'):
-    agent.policy = tf.compat.v2.saved_model.load('checkpoints/policy');
   agent.initialize();
   
   def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
@@ -296,7 +294,7 @@ if __name__ == "__main__":
   engine = BacktestingEngine();
   engine.add_strategy(PPOStrategy, {});
   checkpointer = Checkpointer(
-    ckpt_dir = 'checkpoints',
+    ckpt_dir = 'checkpoints/policy',
     max_to_keep = 1,
     agent = engine.strategy.agent,
     policy = engine.strategy.agent.policy,
