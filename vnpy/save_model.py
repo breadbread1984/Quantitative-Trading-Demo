@@ -21,7 +21,7 @@ def save_model():
     optimizer = optimizer,
     actor_net = actor_net,
     value_net = value_net,
-    normalize_observation = True,
+    normalize_observations = True,
     normalize_rewards = False,
     use_gae = True,
     num_epochs = 1,
