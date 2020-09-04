@@ -129,7 +129,7 @@ class PPOStrategy(CtaTemplate):
     ts = TimeStep(
       step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital + self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
       reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32), # to reduce drawdown
-      discount = tf.constant([1.], dtype = tf.float32),
+      discount = tf.constant([0.8], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
