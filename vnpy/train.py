@@ -76,6 +76,7 @@ class PPOStrategy(CtaTemplate):
     self.replay_buffer.clear();
     self.last_ts = None;
     self.total_pnl = 0;
+    self.total_profit = 0;
     self.total_loss = 0;
 
   def on_start(self):
@@ -120,13 +121,14 @@ class PPOStrategy(CtaTemplate):
     last_reward = daily_result.net_pnl; # reward_{t-1}
     self.history['reward'].append(last_reward);
     self.total_pnl += last_reward;
+    self.total_profit += last_reward if last_reward > 0 else 0;
     self.total_loss += last_reward if last_reward < 0 else 0;
     # step_type.shape = batch x time
     # reward.shape = batch x time
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
       step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital - self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
-      reward = tf.constant([self.history['reward'][-1] + self.total_loss], dtype = tf.float32), # to reduce drawdown
+      reward = tf.constant([self.history['reward'][-1] * abs(self.total_profit/self.total_loss)], dtype = tf.float32), # to reduce drawdown
       discount = tf.constant([1.], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
     if self.last_ts is not None:
