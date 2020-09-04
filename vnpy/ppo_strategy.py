@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from os.path import exists, join;
 from datetime import datetime, timedelta;
 import tensorflow as tf;
 from tf_agents.policies import policy_saver; # policy
@@ -10,13 +11,13 @@ from vnpy.app.cta_strategy.base import StopOrder;
 
 class PPOStrategy(CtaTemplate):
 
-  policy = tf.compat.v2.saved_model.load('checkpoints/policy');
-
   def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
 
     super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting):
+    if exists('final_policy'):
+      self.policy = tf.compat.v2.saved_model.load('final_policy');
     self.bg = BarGenerator(self.on_bar);
-    self.am = ArrayManager(3); # the 
+    self.am = ArrayManager(3);
 
   def on_init(self):
 
