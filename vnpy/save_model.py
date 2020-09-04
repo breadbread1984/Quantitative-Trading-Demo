@@ -4,6 +4,7 @@ import tensorflow as tf;
 from tf_agents.specs.tensor_spec import TensorSpec, BoundedTensorSpec;
 from tf_agents.networks.actor_distribution_rnn_network import ActorDistributionRnnNetwork;
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork;
+from tf_agents.agents.ppo import ppo_agent;
 from tf_agents.trajectories.time_step import TimeStep, StepType, time_step_spec;
 from tf_agents.policies import policy_saver;
 
