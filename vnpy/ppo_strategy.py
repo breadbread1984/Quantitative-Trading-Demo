@@ -8,6 +8,7 @@ from tf_agents.trajectories.time_step import TimeStep, StepType, time_step_spec;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.object import HistoryRequest, TickData, BarData, TradeData, OrderData;
 from vnpy.app.cta_strategy.base import StopOrder;
+from vnpy.app.cta_strategy.backtesting import DailyResult;
 
 class PPOStrategy(CtaTemplate):
 
