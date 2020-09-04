@@ -8,7 +8,9 @@ import pickle;
 import numpy as np;
 import tensorflow as tf;
 from tf_agents.networks.actor_distribution_rnn_network import ActorDistributionRnnNetwork;
+from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork;
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork;
+from tf_agents.networks.value_network import ValueNetwork;
 from tf_agents.agents.ppo import ppo_agent;
 from tf_agents.trajectories.time_step import TimeStep, StepType, time_step_spec;
 from tf_agents.specs.tensor_spec import TensorSpec, BoundedTensorSpec;
@@ -37,8 +39,8 @@ class PPOStrategy(CtaTemplate):
   obs_spec = TensorSpec([7], dtype = tf.float32, name = 'observation');
   # action = {long/cover: 0, short/sell: 1, close: 2, none: 3}
   action_spec = BoundedTensorSpec((1,), dtype = tf.int32, minimum = 0, maximum = 3, name = 'action');
-  actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
-  value_net = ValueRnnNetwork(obs_spec);
+  actor_net = ActorDistributionNetwork(obs_spec, action_spec) #ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
+  value_net = ValueNetwork(obs_spec) #ValueRnnNetwork(obs_spec);
   agent = ppo_agent.PPOAgent(
     time_step_spec = time_step_spec(obs_spec),
     action_spec = action_spec,
@@ -73,6 +75,7 @@ class PPOStrategy(CtaTemplate):
     self.history = {'reward': list(), 'observation': list(), 'action': list()};
     self.replay_buffer.clear();
     self.last_ts = None;
+    self.total_pnl = 0;
 
   def on_start(self):
 
@@ -115,17 +118,22 @@ class PPOStrategy(CtaTemplate):
     self.history['observation'].append(status);
     last_reward = daily_result.net_pnl; # reward_{t-1}
     self.history['reward'].append(last_reward);
+    self.total_pnl += last_reward;
     # step_type.shape = batch x time
     # reward.shape = batch x time
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
-      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() else StepType.MID)], dtype = tf.int32), 
+      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital - self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
       reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32),
       discount = tf.constant([1.], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.history['action'][-1], ts));
+    if self.cta_engine.capital - self.total_pnl <= 0:
+      # broke
+      self.put_event();
+      return;
     action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
     self.history['action'].append(action);
     self.last_ts = ts;
@@ -295,7 +303,7 @@ if __name__ == "__main__":
   engine.add_strategy(PPOStrategy, {});
   checkpointer = Checkpointer(
     ckpt_dir = 'checkpoints/policy',
-    max_to_keep = 1,
+    max_to_keep = 20,
     agent = engine.strategy.agent,
     policy = engine.strategy.agent.policy,
     global_step = tf.compat.v1.train.get_or_create_global_step()
