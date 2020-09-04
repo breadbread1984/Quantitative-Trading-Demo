@@ -39,8 +39,8 @@ class PPOStrategy(CtaTemplate):
   obs_spec = TensorSpec([7], dtype = tf.float32, name = 'observation');
   # action = {long/cover: 0, short/sell: 1, close: 2, none: 3}
   action_spec = BoundedTensorSpec((1,), dtype = tf.int32, minimum = 0, maximum = 3, name = 'action');
-  actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
-  value_net = ValueRnnNetwork(obs_spec);
+  actor_net = ActorDistributionNetwork(obs_spec, action_spec)#ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
+  value_net = ValueNetwork(obs_spec)#ValueRnnNetwork(obs_spec);
   agent = ppo_agent.PPOAgent(
     time_step_spec = time_step_spec(obs_spec),
     action_spec = action_spec,
