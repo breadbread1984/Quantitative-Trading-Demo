@@ -28,7 +28,7 @@ def save_model():
     num_epochs = 1,
   );
   checkpointer = Checkpointer(
-    ckpt_dir = 'checkpointer/policy',
+    ckpt_dir = 'checkpoints/policy',
     max_to_keep = 1,
     agent = agent,
     policy = agent.policy,
