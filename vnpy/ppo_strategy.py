@@ -28,6 +28,7 @@ class PPOStrategy(CtaTemplate):
     self.policy_state = self.policy.get_initial_state(1);
     self.pos_history = list(); # yesterday's and today's bar
     self.last_ts = None;
+    self.total_pnl = 0;
 
   def on_start(self):
 
@@ -67,11 +68,16 @@ class PPOStrategy(CtaTemplate):
     # create time step
     status = [bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos];
     last_reward = daily_result.net_pnl;
+    self.total_pnl += last_reward;
     ts = TimeStep(
-      step_type = tf.constant([StepType.FIRST if self.last_ts is None else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() else StepType.MID)], dtype = tf.int32),
+      step_type = tf.constant([StepType.FIRST if self.last_ts is None else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital - self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32),
       reward = tf.constant([last_reward], dtype = tf.float32),
       discount = tf.constant([1.], dtype = tf.float32),
       observation = tf.constant([status], dtype = tf.float32));
+    if self.cta_engine.capital - self.total_pnl <= 0:
+      # broke
+      self.put_event();
+      return;
     # infer action
     action = self.policy.action(ts, self.policy_state);
     self.last_ts = ts;
