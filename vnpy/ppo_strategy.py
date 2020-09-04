@@ -13,7 +13,7 @@ class PPOStrategy(CtaTemplate):
 
   def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
 
-    super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting):
+    super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     if exists('final_policy'):
       self.policy = tf.compat.v2.saved_model.load('final_policy');
     self.bg = BarGenerator(self.on_bar);

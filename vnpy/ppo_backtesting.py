@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from os.path import exists;
 from datetime import datetime;
 import pickle;
 from vnpy.trader.constant import Interval, Exchange;
@@ -7,7 +8,7 @@ from vnpy.trader.object import HistoryRequest;
 from vnpy.trader.rqdata import rqdata_client;
 from tsdata import tsdata_client;
 from vnpy.trader.database import database_manager;
-from vnpy.app.cta_strategy.backtesting import Backtesting, BacktestingMode;
+from vnpy.app.cta_strategy.backtesting import BacktestingEngine, BacktestingMode;
 from ppo_strategy import PPOStrategy;
 
 def get_fut_info(futs):
@@ -142,7 +143,7 @@ def main():
       # backtesting
       engine.set_parameters(
         vt_symbol = symbol + "." + exchange.value,
-        interval = interval,
+        interval = Interval.DAILY,
         start = info[symbol]['start_date'],
         end = info[symbol]['end_date'],
         rate = info[symbol]['rate'],
@@ -156,6 +157,7 @@ def main():
       engine.run_backtesting();
       engine.calculate_result();
       statistics = engine.calculate_statistics(output = True);
+      input('press to continue');
 
 if __name__ == "__main__":
 
