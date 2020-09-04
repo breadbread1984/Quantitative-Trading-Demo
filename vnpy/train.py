@@ -127,14 +127,14 @@ class PPOStrategy(CtaTemplate):
     # reward.shape = batch x time
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
-      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital - self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
+      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital + self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
       reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32), # to reduce drawdown
       discount = tf.constant([1.], dtype = tf.float32),
       observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.history['action'][-1], ts));
-    if self.cta_engine.capital - self.total_pnl <= 0:
+    if self.cta_engine.capital + self.total_pnl <= 0:
       # broke
       self.put_event();
       return;
