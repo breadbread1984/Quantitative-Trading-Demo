@@ -46,7 +46,7 @@ class PPOStrategy(CtaTemplate):
     actor_net = actor_net,
     value_net = value_net,
     normalize_observations = True,
-    normalize_rewards = False,
+    normalize_rewards = True,
     use_gae = True,
     num_epochs = 1
   );
