@@ -73,7 +73,7 @@ class PPOStrategy(CtaTemplate):
       discount = tf.constant([1.], dtype = tf.float32),
       observation = tf.constant([status], dtype = tf.float32));
     # infer action
-    action = self.agent.policy.action(ts, self.policy_state);
+    action = self.policy.action(ts, self.policy_state);
     self.last_ts = ts;
     if action.action[0,0] == 0:
       if self.pos >= 0: # long
