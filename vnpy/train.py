@@ -150,6 +150,7 @@ class PPOStrategy(CtaTemplate):
       else:
         print('experience is too short skipped current one');
       self.end_of_epside = True;
+      print('agent\'s total_pnl: %f' % (self.total_pnl));
       self.put_event();
       return;
     action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
@@ -353,6 +354,7 @@ if __name__ == "__main__":
         engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
         daily_results = engine.get_all_daily_results();
+        print("vnpy\'s total_pnl: %f" % (statistics['total_net_pnl']));
         '''
         for daily_result in daily_results:
           print("%s(close = %f, pos = %d)->%s(close = %f, pos = %d): net_pnl = %f" % (
