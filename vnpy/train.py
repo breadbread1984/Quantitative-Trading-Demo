@@ -158,24 +158,18 @@ class PPOStrategy(CtaTemplate):
     if action.action[0, 0] == 0:
       if self.pos >= 0: # long
         self.buy(bar.close_price, 1, True);
-        print('%s: send order buy' % (bar.datetime.strftime('%Y-%m-%d')));
       else: # cover
         self.cover(bar.close_price, abs(self.pos), True);
-        print('%s: send order cover' % (bar.datetime.strftime('%Y-%m-%d')));
     elif action.action[0, 0] == 1:
       if self.pos <= 0: # short
         self.short(bar.close_price, 1, True);
-        print('%s: send order short' % (bar.datetime.strftime('%Y-%m-%d')));
       else: # sell
         self.sell(bar.close_price, abs(self.pos), True);
-        print('%s: send order sell' % (bar.datetime.strftime('%Y-%m-%d')));
     elif action.action[0, 0] == 2 and self.pos != 0:
       if self.pos > 0: # sell
         self.sell(bar.close_price, abs(self.pos), True);
-        print('%s: send order sell' % (bar.datetime.strftime('%Y-%m-%d')));
       if self.pos < 0: # cover
         self.cover(bar.close_price, abs(self.pos), True);
-        print('%s: send order cover' % (bar.datetime.strftime('%Y-%m-%d')));
     elif action.action[0, 0] == 3:
       pass;
     self.policy_state = action.state;
@@ -183,12 +177,7 @@ class PPOStrategy(CtaTemplate):
 
   def on_trade(self, trade: TradeData):
 
-    print('%s: %s pos = %d' % (trade.datetime.strftime('%Y-%m-%d'), 
-                               'on buy' if trade.direction == Direction.LONG and trade.offset == Offset.OPEN else (
-                               'on sell' if trade.direction == Direction.SHORT and trade.offset == Offset.CLOSE else (
-                               'on short' if trade.direction == Direction.SHORT and trade.offset == Offset.OPEN else (
-                               'on cover' if trade.direction == Direction.LONG and trade.offset == Offset.CLOSE else 'unknown'))),
-                               self.pos));
+    pass;
 
   def on_order(self, order: OrderData):
 
@@ -352,13 +341,15 @@ if __name__ == "__main__":
           mode = BacktestingMode.BAR,
           inverse = False);
         engine.load_data();
-        # TEST:
+        
+        # backtesting
         engine.strategy.on_init()
         engine.strategy.inited = True;
         engine.strategy.on_start();
         engine.strategy.trading = True;
         for data in engine.history_data[0:]:
           engine.new_bar(data);
+
         engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
         daily_results = engine.get_all_daily_results();
