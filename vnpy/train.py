@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from os.path import exists;
-from datetime import datetime, time, timedelta;
+from datetime import datetime, date, time, timedelta;
 from time import sleep;
 import re;
 import pickle;
@@ -20,7 +20,7 @@ from tf_agents.replay_buffers import tf_uniform_replay_buffer; # replay buffer
 from tf_agents.utils.common import Checkpointer;
 import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
-from vnpy.trader.constant import Interval, Exchange;
+from vnpy.trader.constant import Interval, Exchange, Direction, Offset;
 from vnpy.trader.rqdata import rqdata_client;
 from vnpy.trader.object import HistoryRequest, TickData, BarData, TradeData, OrderData;
 from vnpy.trader.database import database_manager;
@@ -64,20 +64,21 @@ class PPOStrategy(CtaTemplate):
 
     super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
-    self.am = ArrayManager(3); # the day before yesterday, yesterday and today's bar
+    self.am = ArrayManager(1);
 
   def on_init(self):
 
     self.write_log('策略初始化');
     self.load_bar(len(self.cta_engine.history_data));
     self.policy_state = self.agent.policy.get_initial_state(1);
-    self.pos_history = list(); # yesterday's and today's bar
     self.history = {'reward': list(), 'observation': list(), 'action': list()};
     self.replay_buffer.clear();
     self.last_ts = None;
+    self.last_action = None;
     self.total_pnl = 0;
-    self.total_profit = 0;
-    self.total_loss = 0;
+    # context for calculate result
+    self.pre_close = None;
+    self.start_pos = 0;
 
   def on_start(self):
 
@@ -96,66 +97,67 @@ class PPOStrategy(CtaTemplate):
   def on_bar(self, bar: BarData):
 
     self.cancel_all();
-    self.am.update_bar(bar);
-    self.pos_history.append(self.pos);
-    if len(self.pos_history) > 2: self.pos_history.pop(0);
+    self.am.update_bar(bar)
     if not self.am.inited: return;
-    # collect yesterday's trades to inference reward_{t-1}
-    daily_result = DailyResult((bar.datetime - timedelta(days = 1)).date(), self.am.close[1]); # yesterday's close price
+    # NOTE: this function is executed when everyday ends
+    # 1) calculate r_{t-1}
+    reward = 0;
+    daily_result = DailyResult(bar.datetime, bar.close_price);
     for trade in self.cta_engine.trades.values():
-      trade_date = trade.datetime.date();
-      if (bar.datetime - timedelta(days = 1)).date() == trade_date:
+      if trade.datetime.date() == bar.datetime.date():
         daily_result.add_trade(trade);
-    # get yesterday's pnl
-    daily_result.calculate_pnl(
-      self.am.close[0], # the day before yesterday's close
-      self.pos_history[0], # yesterday's start pos
-      self.cta_engine.size,
-      self.cta_engine.rate,
-      self.cta_engine.slippage,
-      self.cta_engine.inverse);
-    # create time step
-    # status.shape = batch x time x 7
-    status = [bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]; # status_t
-    self.history['observation'].append(status);
-    last_reward = daily_result.net_pnl; # reward_{t-1}
-    self.history['reward'].append(last_reward);
-    self.total_pnl += last_reward;
-    self.total_profit += last_reward if last_reward > 0 else 0;
-    self.total_loss += last_reward if last_reward < 0 else 0;
-    # step_type.shape = batch x time
-    # reward.shape = batch x time
+    if len(daily_result.trades):
+        # only update pnl when there are new trades today
+        daily_result.calculate_pnl(
+          self.pre_close,
+          self.start_pos,
+          self.cta_engine.size,
+          self.cta_engine.rate,
+          self.cta_engine.slippage,
+          self.cta_engine.inverse);
+        self.pre_close = daily_result.close_price;
+        self.start_pos = daily_result.end_pos;
+        reward = daily_result.net_pnl;
+    self.total_pnl += reward;
+    if self.pre_close is None: self.pre_close = bar.close_price;
+    # 2) rollout
     # ts = (step_type_t, reward_{t-1}, discount_t, status_t)
     ts = TimeStep(
-      step_type = tf.constant([StepType.FIRST if len(self.history['observation']) == 1 else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital + self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
-      reward = tf.constant([self.history['reward'][-1]], dtype = tf.float32), # to reduce drawdown
+      step_type = tf.constant([StepType.FIRST if self.last_ts is None else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital + self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
+      reward = tf.constant([reward], dtype = tf.float32), # to reduce drawdown
       discount = tf.constant([0.8], dtype = tf.float32),
-      observation = tf.constant([self.history['observation'][-1]], dtype = tf.float32));
+      observation = tf.constant([[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
-      self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.history['action'][-1], ts));
+      self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
     if self.cta_engine.capital + self.total_pnl <= 0:
       # broke
       self.put_event();
       return;
     action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
-    self.history['action'].append(action);
     self.last_ts = ts;
+    self.last_action = action;
     if action.action[0, 0] == 0:
       if self.pos >= 0: # long
         self.buy(bar.close_price, 1, True);
+        print('%s: send order buy' % (bar.datetime.strftime('%Y-%m-%d')));
       else: # cover
         self.cover(bar.close_price, abs(self.pos), True);
+        print('%s: send order cover' % (bar.datetime.strftime('%Y-%m-%d')));
     elif action.action[0, 0] == 1:
       if self.pos <= 0: # short
         self.short(bar.close_price, 1, True);
+        print('%s: send order short' % (bar.datetime.strftime('%Y-%m-%d')));
       else: # sell
         self.sell(bar.close_price, abs(self.pos), True);
+        print('%s: send order sell' % (bar.datetime.strftime('%Y-%m-%d')));
     elif action.action[0, 0] == 2 and self.pos != 0:
       if self.pos > 0: # sell
         self.sell(bar.close_price, abs(self.pos), True);
+        print('%s: send order sell' % (bar.datetime.strftime('%Y-%m-%d')));
       if self.pos < 0: # cover
         self.cover(bar.close_price, abs(self.pos), True);
+        print('%s: send order cover' % (bar.datetime.strftime('%Y-%m-%d')));
     elif action.action[0, 0] == 3:
       pass;
     self.policy_state = action.state;
@@ -167,6 +169,11 @@ class PPOStrategy(CtaTemplate):
 
   def on_order(self, order: OrderData):
 
+    print('%s: %s' % (order.datetime.strftime('%Y-%m-%d'), 
+                      'on buy' if order.direction == Direction.LONG and order.offset == Offset.OPEN else (
+                      'on sell' if order.direction == Direction.SHORT and order.offset == Offset.CLOSE else (
+                      'on short' if order.direction == Direction.SHORT and order.offset == Offset.OPEN else (
+                      'on cover' if order.direction == Direction.LONG and order.offset == Offset.CLOSE else 'unknown')))));
     self.put_event();
 
   def on_stop_order(self, stop_order: StopOrder):
@@ -338,6 +345,13 @@ if __name__ == "__main__":
         engine.run_backtesting();
         engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
+        daily_results = engine.get_all_daily_results();
+        for daily_result in daily_results:
+          print("%s(close = %f, pos = %d)->%s(close = %f, pos = %d): net_pnl = %f" % (
+            (daily_result.date - timedelta(days = 1)).strftime('%Y-%m-%d'), daily_result.pre_close, daily_result.start_pos,
+            daily_result.date.strftime('%Y-%m-%d'), daily_result.close_price, daily_result.end_pos,
+            daily_result.net_pnl
+          ));
         # update policy
         experience = engine.strategy.replay_buffer.gather_all();
         if experience.step_type.shape[1] < 3:
