@@ -64,7 +64,14 @@ class PPOStrategy(CtaTemplate):
 
     super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
-    self.am = ArrayManager(1);
+    self.checkpointer = Checkpointer(
+      ckpt_dir = 'checkpoints/policy',
+      max_to_keep = 20,
+      agent = self.agent,
+      policy = self.agent.policy,
+      global_step = tf.compat.v1.train.get_or_create_global_step()
+    );
+    self.checkpointer.initialize_or_restore();
 
   def on_init(self):
 
@@ -76,6 +83,7 @@ class PPOStrategy(CtaTemplate):
     self.last_ts = None;
     self.last_action = None;
     self.total_pnl = 0;
+    self.end_of_epside = False;
     # context for calculate result
     self.pre_close = None;
     self.start_pos = 0;
@@ -97,8 +105,7 @@ class PPOStrategy(CtaTemplate):
   def on_bar(self, bar: BarData):
 
     self.cancel_all();
-    self.am.update_bar(bar)
-    if not self.am.inited: return;
+    if self.end_of_epside: return;
     # NOTE: this function is executed when everyday ends
     # 1) calculate r_{t-1}
     reward = 0;
@@ -130,8 +137,16 @@ class PPOStrategy(CtaTemplate):
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
-    if self.cta_engine.capital + self.total_pnl <= 0:
-      # broke
+    if ts.step_type == StepType.LAST:
+      # update model and save checkpoint
+      experience = self.replay_buffer.gather_all();
+      if experience.step_type.shape[1] >= 3:
+        loss = self.agent.train(experience = experience);
+        print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
+        self.checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
+        self.end_of_epside = True;
+      else:
+        print('experience is too short skipped current one');
       self.put_event();
       return;
     action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
@@ -165,16 +180,15 @@ class PPOStrategy(CtaTemplate):
 
   def on_trade(self, trade: TradeData):
 
-    pass;
+    print('%s: %s pos = %d' % (trade.datetime.strftime('%Y-%m-%d'), 
+                               'on buy' if trade.direction == Direction.LONG and trade.offset == Offset.OPEN else (
+                               'on sell' if trade.direction == Direction.SHORT and trade.offset == Offset.CLOSE else (
+                               'on short' if trade.direction == Direction.SHORT and trade.offset == Offset.OPEN else (
+                               'on cover' if trade.direction == Direction.LONG and trade.offset == Offset.CLOSE else 'unknown'))),
+                               self.pos));
 
   def on_order(self, order: OrderData):
 
-    print('%s: %s pos = %d' % (order.datetime.strftime('%Y-%m-%d'), 
-                               'on buy' if order.direction == Direction.LONG and order.offset == Offset.OPEN else (
-                               'on sell' if order.direction == Direction.SHORT and order.offset == Offset.CLOSE else (
-                               'on short' if order.direction == Direction.SHORT and order.offset == Offset.OPEN else (
-                               'on cover' if order.direction == Direction.LONG and order.offset == Offset.CLOSE else 'unknown'))),
-                               self.pos));
     self.put_event();
 
   def on_stop_order(self, stop_order: StopOrder):
@@ -311,16 +325,6 @@ if __name__ == "__main__":
   else:
     with open('info.pkl', 'rb') as f:
       info = pickle.loads(f.read());
-  engine = BacktestingEngine();
-  engine.add_strategy(PPOStrategy, {});
-  checkpointer = Checkpointer(
-    ckpt_dir = 'checkpoints/policy',
-    max_to_keep = 20,
-    agent = engine.strategy.agent,
-    policy = engine.strategy.agent.policy,
-    global_step = tf.compat.v1.train.get_or_create_global_step()
-  );
-  checkpointer.initialize_or_restore();
   for i in range(100):
     for exchange, symbols in futures.items():
       for symbol in symbols:
@@ -330,6 +334,8 @@ if __name__ == "__main__":
         else:
           print('symbol: ' + symbol + '载入数据');
         # backtesting
+        engine = BacktestingEngine();
+        engine.add_strategy(PPOStrategy, {});
         engine.set_parameters(
           vt_symbol = symbol + "." + exchange.value,
           interval = interval,
@@ -353,13 +359,6 @@ if __name__ == "__main__":
             daily_result.date.strftime('%Y-%m-%d'), daily_result.close_price, daily_result.end_pos,
             daily_result.net_pnl
           ));
-        # update policy
-        experience = engine.strategy.replay_buffer.gather_all();
-        if experience.step_type.shape[1] < 3:
-          print('experience is too short skipped current one');
-          continue;
-        loss = engine.strategy.agent.train(experience = experience);
-        print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
-        checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
+        continue;
   saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
   saver.save('final_policy');
