@@ -352,7 +352,13 @@ if __name__ == "__main__":
           mode = BacktestingMode.BAR,
           inverse = False);
         engine.load_data();
-        engine.run_backtesting();
+        # TEST:
+        engine.strategy.on_init()
+        engine.strategy.inited = True;
+        engine.strategy.on_start();
+        engine.strategy.trading = True;
+        for data in engine.history_data[0:]:
+          engine.new_bar(data);
         engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
         daily_results = engine.get_all_daily_results();
