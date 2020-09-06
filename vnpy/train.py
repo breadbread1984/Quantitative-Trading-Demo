@@ -72,6 +72,7 @@ class PPOStrategy(CtaTemplate):
       global_step = tf.compat.v1.train.get_or_create_global_step()
     );
     self.checkpointer.initialize_or_restore();
+    self.trading = True;
 
   def on_init(self):
 
@@ -105,7 +106,9 @@ class PPOStrategy(CtaTemplate):
   def on_bar(self, bar: BarData):
 
     self.cancel_all();
-    if self.end_of_epside: return;
+    if self.end_of_epside: 
+      self.put_event()
+      return;
     # NOTE: this function is executed when everyday ends
     # 1) calculate r_{t-1}
     reward = 0;
@@ -144,9 +147,9 @@ class PPOStrategy(CtaTemplate):
         loss = self.agent.train(experience = experience);
         print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
         self.checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
-        self.end_of_epside = True;
       else:
         print('experience is too short skipped current one');
+      self.end_of_epside = True;
       self.put_event();
       return;
     action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
