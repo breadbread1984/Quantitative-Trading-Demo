@@ -79,7 +79,6 @@ class PPOStrategy(CtaTemplate):
     self.write_log('策略初始化');
     self.load_bar(len(self.cta_engine.history_data));
     self.policy_state = self.agent.policy.get_initial_state(1);
-    self.history = {'reward': list(), 'observation': list(), 'action': list()};
     self.replay_buffer.clear();
     self.last_ts = None;
     self.last_action = None;
