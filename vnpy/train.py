@@ -169,11 +169,12 @@ class PPOStrategy(CtaTemplate):
 
   def on_order(self, order: OrderData):
 
-    print('%s: %s' % (order.datetime.strftime('%Y-%m-%d'), 
-                      'on buy' if order.direction == Direction.LONG and order.offset == Offset.OPEN else (
-                      'on sell' if order.direction == Direction.SHORT and order.offset == Offset.CLOSE else (
-                      'on short' if order.direction == Direction.SHORT and order.offset == Offset.OPEN else (
-                      'on cover' if order.direction == Direction.LONG and order.offset == Offset.CLOSE else 'unknown')))));
+    print('%s: %s pos = %d' % (order.datetime.strftime('%Y-%m-%d'), 
+                               'on buy' if order.direction == Direction.LONG and order.offset == Offset.OPEN else (
+                               'on sell' if order.direction == Direction.SHORT and order.offset == Offset.CLOSE else (
+                               'on short' if order.direction == Direction.SHORT and order.offset == Offset.OPEN else (
+                               'on cover' if order.direction == Direction.LONG and order.offset == Offset.CLOSE else 'unknown'))),
+                               self.pos));
     self.put_event();
 
   def on_stop_order(self, stop_order: StopOrder):
