@@ -353,12 +353,13 @@ if __name__ == "__main__":
         engine.calculate_result();
         statistics = engine.calculate_statistics(output = True);
         daily_results = engine.get_all_daily_results();
+        '''
         for daily_result in daily_results:
           print("%s(close = %f, pos = %d)->%s(close = %f, pos = %d): net_pnl = %f" % (
             (daily_result.date - timedelta(days = 1)).strftime('%Y-%m-%d'), daily_result.pre_close, daily_result.start_pos,
             daily_result.date.strftime('%Y-%m-%d'), daily_result.close_price, daily_result.end_pos,
             daily_result.net_pnl
           ));
-        continue;
+        '''
   saver = policy_saver.PolicySaver(engine.strategy.agent.policy);
   saver.save('final_policy');
