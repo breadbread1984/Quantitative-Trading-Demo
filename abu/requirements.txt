@@ -9,7 +9,7 @@ scipy
 idna
 certifi
 urllib3
-cardet
+#cardet
 joblib
 python-dateutil
 kiwisolver
