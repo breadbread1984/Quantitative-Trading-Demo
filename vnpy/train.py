@@ -180,6 +180,7 @@ class PPOStrategy(CtaTemplate):
         experience, unused_info = next(iterator);
         loss = self.agent.train(experience);
         print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
+        self.checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
       self.end_of_epside = True;
       print('agent\'s total_pnl: %f' % (self.total_pnl));
       self.put_event();
