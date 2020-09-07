@@ -7,17 +7,21 @@ import re;
 import pickle;
 import numpy as np;
 import tensorflow as tf;
+# networks
 from tf_agents.networks.actor_distribution_rnn_network import ActorDistributionRnnNetwork;
 from tf_agents.networks.actor_distribution_network import ActorDistributionNetwork;
 from tf_agents.networks.value_rnn_network import ValueRnnNetwork;
 from tf_agents.networks.value_network import ValueNetwork;
+from tf_agents.networks.q_network import QNetwork;
+# agents
 from tf_agents.agents.ppo import ppo_agent;
+from tf_agents.agents.dqn import dqn_agent;
 from tf_agents.trajectories.time_step import TimeStep, StepType, time_step_spec;
 from tf_agents.specs.tensor_spec import TensorSpec, BoundedTensorSpec;
 from tf_agents.trajectories import trajectory;
 from tf_agents.policies import policy_saver;
 from tf_agents.replay_buffers import tf_uniform_replay_buffer; # replay buffer
-from tf_agents.utils.common import Checkpointer;
+from tf_agents.utils.common import Checkpointer, element_wise_squared_loss;
 import tushare as ts;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager;
 from vnpy.trader.constant import Interval, Exchange, Direction, Offset;
@@ -31,6 +35,7 @@ from tsdata import tsdata_client;
 interval = Interval.DAILY;
 download_missing_data = False;
 data_source = "TS";
+use_ppo = True;
 
 class PPOStrategy(CtaTemplate):
 
@@ -38,20 +43,30 @@ class PPOStrategy(CtaTemplate):
   # observation = (volume, open interest, open price, close price, high price, low price,)
   obs_spec = TensorSpec((7,), dtype = tf.float32, name = 'observation');
   # action = {long/cover: 0, short/sell: 1, close: 2, none: 3}
-  action_spec = BoundedTensorSpec((1,), dtype = tf.int32, minimum = 0, maximum = 3, name = 'action');
-  actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
-  value_net = ValueRnnNetwork(obs_spec);
-  agent = ppo_agent.PPOAgent(
-    time_step_spec = time_step_spec(obs_spec),
-    action_spec = action_spec,
-    optimizer= optimizer,
-    actor_net = actor_net,
-    value_net = value_net,
-    normalize_observations = True,
-    normalize_rewards = False,
-    use_gae = True,
-    num_epochs = 1
-  );
+  action_spec = BoundedTensorSpec((), dtype = tf.int32, minimum = 0, maximum = 3, name = 'action');
+  if use_ppo:
+    actor_net = ActorDistributionRnnNetwork(obs_spec, action_spec, lstm_size = (100,100));
+    value_net = ValueRnnNetwork(obs_spec);
+    agent = ppo_agent.PPOAgent(
+      time_step_spec = time_step_spec(obs_spec),
+      action_spec = action_spec,
+      optimizer= optimizer,
+      actor_net = actor_net,
+      value_net = value_net,
+      normalize_observations = True,
+      normalize_rewards = True,
+      use_gae = True,
+      num_epochs = 1
+    );
+  else:
+    q_net = QNetwork(obs_spec, action_spec, fc_layer_params = (100,));
+    agent = dqn_agent.DqnAgent(
+      time_step_spec = time_step_spec(obs_spec),
+      action_spec = action_spec,
+      q_network = q_net,
+      optimizer = optimizer,
+      td_errors_loss_fn = element_wise_squared_loss
+    );
   # replay buffer
   replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
     agent.collect_data_spec,
@@ -64,13 +79,23 @@ class PPOStrategy(CtaTemplate):
 
     super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
-    self.checkpointer = Checkpointer(
-      ckpt_dir = 'checkpoints/policy',
-      max_to_keep = 20,
-      agent = self.agent,
-      policy = self.agent.policy,
-      global_step = tf.compat.v1.train.get_or_create_global_step()
-    );
+    if use_ppo:
+      self.checkpointer = Checkpointer(
+        ckpt_dir = 'checkpoints/policy',
+        max_to_keep = 20,
+        agent = self.agent,
+        policy = self.agent.policy,
+        global_step = tf.compat.v1.train.get_or_create_global_step()
+      );
+    else:
+      self.checkpointer = Checkpointer(
+        ckpt_dir = 'checkpoints/policy',
+        max_to_keep = 20,
+        agent = self.agent,
+        policy = self.agent.policy,
+        replay_buffer = self.replay_buffer,
+        global_step = tf.compat.v1.train.get_or_create_global_step()
+      );
     self.checkpointer.initialize_or_restore();
     self.trading = True;
 
@@ -137,17 +162,27 @@ class PPOStrategy(CtaTemplate):
       discount = tf.constant([0.8], dtype = tf.float32),
       observation = tf.constant([[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]], dtype = tf.float32));
     if self.last_ts is not None:
-      # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
-      self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
-    if ts.step_type == StepType.LAST:
-      # update model and save checkpoint
-      experience = self.replay_buffer.gather_all();
-      if experience.step_type.shape[1] >= 3:
-        loss = self.agent.train(experience = experience);
-        print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
-        self.checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
+      if use_ppo:
+        # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
+        self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
       else:
-        print('experience is too short skipped current one');
+        self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts.observation, self.last_action, ts.observation));
+    if ts.step_type == StepType.LAST:
+      if use_ppo:
+        # update model and save checkpoint
+        experience = self.replay_buffer.gather_all();
+        if experience.step_type.shape[1] >= 10:
+          loss = self.agent.train(experience = experience);
+          print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
+          self.checkpointer.save(tf.compat.v1.train.get_or_create_global_step());
+        else:
+          print('experience is too short skipped current one');
+      else:
+        dataset = replay_buffer.as_dataset(num_parallel_calls = 3, sample_batch_size = 1, num_steps = 2).prefetch(3);
+        iterator = iter(dataset);
+        experience, unused_info = next(iterator);
+        loss = self.agent.train(experience);
+        print('#%d loss = %f' % (tf.compat.v1.train.get_or_create_global_step(), loss.loss));
       self.end_of_epside = True;
       print('agent\'s total_pnl: %f' % (self.total_pnl));
       self.put_event();
@@ -155,22 +190,22 @@ class PPOStrategy(CtaTemplate):
     action = self.agent.collect_policy.action(ts, self.policy_state); # action_t
     self.last_ts = ts;
     self.last_action = action;
-    if action.action[0, 0] == 0:
+    if action.action[0] == 0:
       if self.pos >= 0: # long
         self.buy(bar.close_price, 1, True);
       else: # cover
         self.cover(bar.close_price, abs(self.pos), True);
-    elif action.action[0, 0] == 1:
+    elif action.action[0] == 1:
       if self.pos <= 0: # short
         self.short(bar.close_price, 1, True);
       else: # sell
         self.sell(bar.close_price, abs(self.pos), True);
-    elif action.action[0, 0] == 2 and self.pos != 0:
+    elif action.action[0] == 2 and self.pos != 0:
       if self.pos > 0: # sell
         self.sell(bar.close_price, abs(self.pos), True);
       if self.pos < 0: # cover
         self.cover(bar.close_price, abs(self.pos), True);
-    elif action.action[0, 0] == 3:
+    elif action.action[0] == 3:
       pass;
     self.policy_state = action.state;
     self.put_event();
