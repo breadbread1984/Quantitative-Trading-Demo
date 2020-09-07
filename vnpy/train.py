@@ -35,7 +35,7 @@ from tsdata import tsdata_client;
 interval = Interval.DAILY;
 download_missing_data = False;
 data_source = "TS";
-use_ppo = True;
+use_ppo = False;
 
 class PPOStrategy(CtaTemplate):
 
@@ -162,11 +162,8 @@ class PPOStrategy(CtaTemplate):
       discount = tf.constant([0.8], dtype = tf.float32),
       observation = tf.constant([[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]], dtype = tf.float32));
     if self.last_ts is not None:
-      if use_ppo:
-        # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
-        self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
-      else:
-        self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts.observation, self.last_action, ts.observation));
+      # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
+      self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
     if ts.step_type == StepType.LAST:
       if use_ppo:
         # update model and save checkpoint
@@ -178,7 +175,7 @@ class PPOStrategy(CtaTemplate):
         else:
           print('experience is too short skipped current one');
       else:
-        dataset = replay_buffer.as_dataset(num_parallel_calls = 3, sample_batch_size = 1, num_steps = 2).prefetch(3);
+        dataset = self.replay_buffer.as_dataset(num_parallel_calls = 3, sample_batch_size = 1, num_steps = 2).prefetch(3);
         iterator = iter(dataset);
         experience, unused_info = next(iterator);
         loss = self.agent.train(experience);
