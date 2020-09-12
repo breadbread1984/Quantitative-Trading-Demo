@@ -43,7 +43,7 @@ class PPOStrategy(CtaTemplate):
 
   optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = 1e-3);
   # observation = (volume, open interest, open price, close price, high price, low price,)
-  obs_spec = TensorSpec((46,), dtype = tf.float32, name = 'observation');
+  obs_spec = TensorSpec((34,), dtype = tf.float32, name = 'observation');
   # action = {long/cover: 0, short/sell: 1, close: 2, none: 3}
   action_spec = BoundedTensorSpec((), dtype = tf.int32, minimum = 0, maximum = 3, name = 'action');
   if use_ppo:
@@ -166,14 +166,13 @@ class PPOStrategy(CtaTemplate):
       reward = tf.constant([reward], dtype = tf.float32), # to reduce drawdown
       discount = tf.constant([0.8], dtype = tf.float32),
       observation = tf.constant([[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos, 
-                                  self.am.sma(window_size), self.am.ema(window_size), self.am.kama(window_size), self.am.wma(window_size), self.am.apo(window_size),
-                                  self.am.cmo(window_size), self.am.mom(window_size), self.am.ppo(window_size), self.am.roc(window_size), self.am.rocr(window_size),
-                                  self.am.rocp(window_size), self.am.rocr_100(window_size), self.am.trix(window_size), self.am.std(window_size), self.am.obv(window_size),
-                                  self.am.cci(window_size), self.am.atr(window_size), self.am.natr(window_size), self.am.rsi(window_size), self.am.adx(window_size),
-                                  self.am.adxr(window_size), self.am.dx(window_size), self.am.minus_di(window_size), self.am.plus_di(window_size), self.am.willr(window_size),
-                                  self.am.ultosc(window_size), self.am.trange(window_size), *self.am.boll(window_size, self.am.std(window_size)), *self.am.keltner(window_size, self.am.std(window_size)), *self.am.donchian(window_size),
-                                  *self.am.aroon(window_size), self.am.aroonosc(window_size), self.am.minus_dm(window_size), self.am.plus_dm(window_size), self.am.mfi(window_size),
-                                  self.am.ad(window_size), self.am.adosc(window_size), self.am.bop(window_size)]], dtype = tf.float32));
+                                  self.am.sma(window_size), self.am.ema(window_size), self.am.kama(window_size), self.am.wma(window_size),
+                                  self.am.cmo(window_size), self.am.mom(window_size), self.am.roc(window_size), self.am.rocr(window_size),
+                                  self.am.rocp(window_size), self.am.rocr_100(window_size), self.am.std(window_size), self.am.obv(window_size),
+                                  self.am.cci(window_size), self.am.atr(window_size), self.am.natr(window_size), self.am.rsi(window_size),
+                                  self.am.dx(window_size), self.am.minus_di(window_size), self.am.plus_di(window_size), self.am.willr(window_size),
+                                  self.am.trange(), self.am.aroonosc(window_size), self.am.minus_dm(window_size), self.am.plus_dm(window_size), self.am.mfi(window_size),
+                                  self.am.ad(window_size), self.am.bop()]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
