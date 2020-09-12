@@ -36,12 +36,13 @@ interval = Interval.DAILY;
 download_missing_data = False;
 data_source = "TS";
 use_ppo = False;
+period = 5;
 
 class PPOStrategy(CtaTemplate):
 
   optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = 1e-3);
   # observation = (volume, open interest, open price, close price, high price, low price,)
-  obs_spec = TensorSpec((7,), dtype = tf.float32, name = 'observation');
+  obs_spec = TensorSpec((46,), dtype = tf.float32, name = 'observation');
   # action = {long/cover: 0, short/sell: 1, close: 2, none: 3}
   action_spec = BoundedTensorSpec((), dtype = tf.int32, minimum = 0, maximum = 3, name = 'action');
   if use_ppo:
@@ -79,6 +80,7 @@ class PPOStrategy(CtaTemplate):
 
     super(PPOStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
+    self.am = ArrayManager(period);
     if use_ppo:
       self.checkpointer = Checkpointer(
         ckpt_dir = 'checkpoints/policy',
@@ -130,6 +132,8 @@ class PPOStrategy(CtaTemplate):
   def on_bar(self, bar: BarData):
 
     self.cancel_all();
+    self.am.update_bar(bar);
+    if not self.am.inited: return;
     if self.end_of_epside: 
       self.put_event()
       return;
@@ -160,7 +164,15 @@ class PPOStrategy(CtaTemplate):
       step_type = tf.constant([StepType.FIRST if self.last_ts is None else (StepType.LAST if bar.datetime.date() == self.cta_engine.end.date() or self.cta_engine.capital + self.total_pnl <= 0 else StepType.MID)], dtype = tf.int32), 
       reward = tf.constant([reward], dtype = tf.float32), # to reduce drawdown
       discount = tf.constant([0.8], dtype = tf.float32),
-      observation = tf.constant([[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos]], dtype = tf.float32));
+      observation = tf.constant([[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos, 
+                                  self.am.sma(period), self.am.ema(period), self.am.kama(period), self.am.wma(period), self.am.apo(period),
+                                  self.am.cmo(period), self.am.mom(period), self.am.ppo(period), self.am.roc(period), self.am.rocr(period),
+                                  self.am.rocp(period), self.am.rocr_100(period), self.am.trix(period), self.am.std(period), self.am.obv(period),
+                                  self.am.cci(period), self.am.atr(period), self.am.natr(period), self.am.rsi(period), self.am.adx(period),
+                                  self.am.adxr(period), self.am.dx(period), self.am.minus_di(period), self.am.plus_di(period), self.am.willr(period),
+                                  self.am.ultosc(period), self.am.trange(period), *self.am.boll(period), *self.am.keltner(period), *self.am.donchian(period),
+                                  *self.am.aroon(period), self.am.aroonosc(period), self.am.minus_dm(period), self.am.plus_dm(period), self.am.mfi(period),
+                                  self.am.ad(period), self.am.adosc(period), self.am.bop(period)]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
