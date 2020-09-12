@@ -36,7 +36,8 @@ interval = Interval.DAILY;
 download_missing_data = False;
 data_source = "TS";
 use_ppo = False;
-period = 5;
+period = 7;
+window_size = 5;
 
 class PPOStrategy(CtaTemplate):
 
@@ -165,14 +166,14 @@ class PPOStrategy(CtaTemplate):
       reward = tf.constant([reward], dtype = tf.float32), # to reduce drawdown
       discount = tf.constant([0.8], dtype = tf.float32),
       observation = tf.constant([[bar.volume, bar.open_interest, bar.open_price, bar.close_price, bar.high_price, bar.low_price, self.pos, 
-                                  self.am.sma(period), self.am.ema(period), self.am.kama(period), self.am.wma(period), self.am.apo(period),
-                                  self.am.cmo(period), self.am.mom(period), self.am.ppo(period), self.am.roc(period), self.am.rocr(period),
-                                  self.am.rocp(period), self.am.rocr_100(period), self.am.trix(period), self.am.std(period), self.am.obv(period),
-                                  self.am.cci(period), self.am.atr(period), self.am.natr(period), self.am.rsi(period), self.am.adx(period),
-                                  self.am.adxr(period), self.am.dx(period), self.am.minus_di(period), self.am.plus_di(period), self.am.willr(period),
-                                  self.am.ultosc(period), self.am.trange(period), *self.am.boll(period, self.am.std(period)), *self.am.keltner(period, self.am.std(period)), *self.am.donchian(period),
-                                  *self.am.aroon(period), self.am.aroonosc(period), self.am.minus_dm(period), self.am.plus_dm(period), self.am.mfi(period),
-                                  self.am.ad(period), self.am.adosc(period), self.am.bop(period)]], dtype = tf.float32));
+                                  self.am.sma(window_size), self.am.ema(window_size), self.am.kama(window_size), self.am.wma(window_size), self.am.apo(window_size),
+                                  self.am.cmo(window_size), self.am.mom(window_size), self.am.ppo(window_size), self.am.roc(window_size), self.am.rocr(window_size),
+                                  self.am.rocp(window_size), self.am.rocr_100(window_size), self.am.trix(window_size), self.am.std(window_size), self.am.obv(window_size),
+                                  self.am.cci(window_size), self.am.atr(window_size), self.am.natr(window_size), self.am.rsi(window_size), self.am.adx(window_size),
+                                  self.am.adxr(window_size), self.am.dx(window_size), self.am.minus_di(window_size), self.am.plus_di(window_size), self.am.willr(window_size),
+                                  self.am.ultosc(window_size), self.am.trange(window_size), *self.am.boll(window_size, self.am.std(window_size)), *self.am.keltner(window_size, self.am.std(window_size)), *self.am.donchian(window_size),
+                                  *self.am.aroon(window_size), self.am.aroonosc(window_size), self.am.minus_dm(window_size), self.am.plus_dm(window_size), self.am.mfi(window_size),
+                                  self.am.ad(window_size), self.am.adosc(window_size), self.am.bop(window_size)]], dtype = tf.float32));
     if self.last_ts is not None:
       # (status_{t-1}, reward_{t-2})--action_{t-1}-->(status_t, reward_{t-1})
       self.replay_buffer.add_batch(trajectory.from_transition(self.last_ts, self.last_action, ts));
