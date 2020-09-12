@@ -170,7 +170,7 @@ class PPOStrategy(CtaTemplate):
                                   self.am.rocp(period), self.am.rocr_100(period), self.am.trix(period), self.am.std(period), self.am.obv(period),
                                   self.am.cci(period), self.am.atr(period), self.am.natr(period), self.am.rsi(period), self.am.adx(period),
                                   self.am.adxr(period), self.am.dx(period), self.am.minus_di(period), self.am.plus_di(period), self.am.willr(period),
-                                  self.am.ultosc(period), self.am.trange(period), *self.am.boll(period), *self.am.keltner(period), *self.am.donchian(period),
+                                  self.am.ultosc(period), self.am.trange(period), *self.am.boll(period, self.am.std(period)), *self.am.keltner(period), *self.am.donchian(period),
                                   *self.am.aroon(period), self.am.aroonosc(period), self.am.minus_dm(period), self.am.plus_dm(period), self.am.mfi(period),
                                   self.am.ad(period), self.am.adosc(period), self.am.bop(period)]], dtype = tf.float32));
     if self.last_ts is not None:
