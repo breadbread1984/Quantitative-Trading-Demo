@@ -45,7 +45,7 @@ def main(symbol, exchange, start, end):
     kernel = tfp.mcmc.TransformedTransitionKernel(
       inner_kernel = tfp.mcmc.HamiltonianMonteCarlo(
         target_log_prob_fn = log_prob_generator(X),
-        num_leapfrog_step = 2,
+        num_leapfrog_steps = 2,
         step_size = step_size,
         step_size_update_fn = tfp.mcmc.make_simple_step_size_update_policy(num_adaptation_steps = 20000),
         state_gradients_are_stopped = True
