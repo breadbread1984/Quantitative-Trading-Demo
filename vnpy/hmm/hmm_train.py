@@ -30,18 +30,23 @@ def main(symbol, exchange, start, end):
         log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
   X = tf.expand_dims(X, axis = 0); # X.shape = (1, len(data) - 5, 3)
   # bayesian inference parameter
-  step_size = tf.constant(0.5, dtype = tf.float32);
+  step_size = tf.Variable(0.5, dtype = tf.float32, trainable = False);
+  initial_probs = tf.constant([1./6, 1./6, 1./6, 1./6, 1./6, 1./6], dtype = tf.float32);
+  transition_probs = tf.constant([[1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6]], dtype = tf.float32);
+  observation_mean = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
+  observation_std = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
   [probs], kernel_results = tfp.mcmc.sample_chain(
     num_results = 48000,
     num_burnin_steps = 25000,
-    current_state = [tf.constant([1./6, 1./6, 1./6, 1./6, 1./6, 1./6]),
-                     tf.constant([[1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6]]),
-                     tf.constant(np.random.normal(size = (6,3))), tf.constant(np.random.normal(size = (6,3)))],
+    current_state = [tf.concat([initial_probs, 
+                                tf.reshape(transition_probs, (-1,)), 
+                                tf.reshape(observation_mean, (-1,)),
+                                tf.reshape(observation_std, (-1,))], axis = 0)],
     kernel = tfp.mcmc.TransformedTransitionKernel(
       inner_kernel = tfp.mcmc.HamiltonianMonteCarlo(
         target_log_prob_fn = log_prob_generator(X),
@@ -57,11 +62,15 @@ def main(symbol, exchange, start, end):
 
 def log_prob_generator(samples):
   # samples.shape = (1, num_steps, 3)
-  def func(initial_probs, transition_probs, observation_mean, observation_std):
+  def func(probs):
+    initial_probs = tf.slice(probs, begin = [0,], size = [6,]);
+    transition_probs = tf.reshape(tf.slice(probs, begin = [6,], size = [36,]), (6,6));
+    observation_mean = tf.reshape(tf.slice(probs, begin = [42,], size = [18,]), (6,3));
+    observation_std = tf.reshape(tf.slice(probs, begin = [60,], size = [18,]), (6,3));
     prob_dist = tfp.distributions.HiddenMarkovModel(initial_distribution = tfp.distributions.Categorical(probs = initial_probs),
                                                     transition_distribution = tfp.distributions.Categorical(probs = transition_probs),
-                                                    observation_distribution = tfp.distributions.Normal(loc = observation_mean,
-                                                                                                        scale = observation_std),
+                                                    observation_distribution = tfp.distributions.MultivariateNormalDiag(loc = observation_mean,
+                                                                                                                        scale_diag = observation_std),
                                                     num_steps = samples.shape[1]);
     return tf.math.reduce_sum(prob_dist.log_prob(samples));
   return func;
