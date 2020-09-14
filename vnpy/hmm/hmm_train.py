@@ -39,7 +39,18 @@ def main(symbol, exchange, start, end):
                       [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
                       [1./6, 1./6, 1./6, 1./6, 1./6, 1./6]]),
                      tf.constant(np.random.normal(size = (6,3))), tf.constant(np.random.normal(size = (6,3)))],
+    kernel = tfp.mcmc.TransformedTransitionKernel(
+      inner_kernel = tfp.mcmc.HamiltonianMonteCarlo(
+        target_log_prob_fn = log_prob_generator(X),
+        num_leapfrog_step = 2,
+        step_size = step_size,
+        step_size_update_fn = tfp.mcmc.make_simple_step_size_update_policy(num_adaptation_steps = 20000),
+        state_gradients_are_stopped = True
+      ),
+      bijector = [tfp.bijectors.Identity()]
+    )
   );
+  print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
 
 def log_prob_generator(samples):
   # samples.shape = (1, num_steps, 3)
