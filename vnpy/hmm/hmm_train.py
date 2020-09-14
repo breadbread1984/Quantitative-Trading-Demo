@@ -12,6 +12,7 @@ import tensorflow_probability as tfp;
 
 def main(symbol, exchange, start, end):
 
+  # 1) prepare samples
   data = database_manager.load_bar_data(symbol, exchange, Interval.DAILY, start, end);
   if len(data) == 0:
     # download data if not presented
@@ -29,7 +30,7 @@ def main(symbol, exchange, start, end):
         log(data[i].close_price) - log(data[i-5].close_price),
         log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
   X = tf.expand_dims(X, axis = 0); # X.shape = (1, len(data) - 5, 3)
-  # bayesian inference parameter
+  # 2) sample parameters with posteriori
   step_size = tf.Variable(0.5, dtype = tf.float32, trainable = False);
   initial_probs = tf.constant([1./6, 1./6, 1./6, 1./6, 1./6, 1./6], dtype = tf.float32);
   transition_probs = tf.constant([[1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
@@ -59,6 +60,10 @@ def main(symbol, exchange, start, end):
     )
   );
   print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
+  probs = probs[25000:];
+  print(probs.shape);
+  # 3) find the mode of the sampled parameters
+  # TODO
 
 def log_prob_generator(samples):
   # samples.shape = (1, num_steps, 3)
@@ -77,4 +82,5 @@ def log_prob_generator(samples):
 
 if __name__ == "__main__":
 
+  assert tf.executing_eagerly();
   main('000301', Exchange.SZSE, datetime(2012,6,1), datetime(2016,4,7));
