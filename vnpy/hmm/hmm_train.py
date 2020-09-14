@@ -7,12 +7,13 @@ from vnpy.trader.constant import Interval, Exchange;
 from vnpy.trader.object import HistoryRequest;
 from tsdata import tsdata_client;
 import numpy as np;
+import pickle;
 import tensorflow as tf;
 import tensorflow_probability as tfp;
 
 def main(symbol, exchange, start, end):
 
-  # 1) prepare samples
+  # 1) prepare observation X
   data = database_manager.load_bar_data(symbol, exchange, Interval.DAILY, start, end);
   if len(data) == 0:
     # download data if not presented
@@ -30,7 +31,7 @@ def main(symbol, exchange, start, end):
         log(data[i].close_price) - log(data[i-5].close_price),
         log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
   X = tf.expand_dims(X, axis = 0); # X.shape = (1, len(data) - 5, 3)
-  # 2) sample parameters with posteriori
+  # 2) sample p(theta | X)
   step_size = tf.Variable(0.5, dtype = tf.float32, trainable = False);
   initial_probs = tf.constant([1./6, 1./6, 1./6, 1./6, 1./6, 1./6], dtype = tf.float32);
   transition_probs = tf.constant([[1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
@@ -61,10 +62,19 @@ def main(symbol, exchange, start, end):
   );
   print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
   states = states[25000:]; # states.shape = (batch = 1, sample num, state_dim = 78)
-  # 3) find the mode of the sampled parameters
+  # 3) find the mode of p(theta | X)
   mean = tf.math.reduce_mean(states, axis = [0, 1], keepdims = True); # sample_mean.shape = (1, 1, 78)
-  std = tf.sqrt(tf.math.reduce_mean(tf.math.square(states - mean), axis = [0, 1])); # std.shape = (state_dim = 78)
-  # TODO
+  var = tf.math.reduce_mean(tf.math.square(states - mean), axis = [0, 1], keepdims = True); # var.shape = (1, 1, state_dim = 78)
+  mode = mean;
+  while True:
+    mahalanobis_dist = tf.math.sqrt(tf.math.reduce_sum(tf.math.square(states - mode) / var, axis = -1)); # mahalanobis_dist.shape = (1, sample_num)
+    idx = tf.argsort(mahalanobis_dist, axis = -1, direction = 'DESCENDING')[0,:states.shape[1]/1000]; # idx.shape = (sample num/1000)
+    idx = tf.stack([tf.zeros_like(idx), idx], axis = -1); # idx.shape = (sample num/1000, 2)
+    neighbors = tf.gather_nd(states, idx); # neighbors.shape = (sample num/1000, state dim = 78)
+    new_mode = tf.reshape(tf.math.reduce_mean(neighbors, axis = 0), (1, 1, -1)); # mode.shape = (1, 1, state dim = 78)
+    if tf.math.reduce_sum(tf.math.square(new_mode - mode)) < 1e-3: break;
+    mode = new_mode;
+  
 
 def log_prob_generator(samples):
   # samples.shape = (1, num_steps, 3)
