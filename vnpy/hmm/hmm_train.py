@@ -41,7 +41,7 @@ def main(symbol, exchange, start, end):
                       [1./6, 1./6, 1./6, 1./6, 1./6, 1./6]], dtype = tf.float32);
   observation_mean = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
   observation_std = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
-  [probs], kernel_results = tfp.mcmc.sample_chain(
+  [states], kernel_results = tfp.mcmc.sample_chain(
     num_results = 48000,
     num_burnin_steps = 25000,
     current_state = [tf.concat([initial_probs, 
@@ -60,9 +60,10 @@ def main(symbol, exchange, start, end):
     )
   );
   print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
-  probs = probs[25000:];
-  print(probs.shape);
+  states = states[25000:]; # states.shape = (batch = 1, sample num, state_dim = 78)
   # 3) find the mode of the sampled parameters
+  mean = tf.math.reduce_mean(states, axis = [0, 1], keepdims = True); # sample_mean.shape = (1, 1, 78)
+  std = tf.sqrt(tf.math.reduce_mean(tf.math.square(states - mean), axis = [0, 1])); # std.shape = (state_dim = 78)
   # TODO
 
 def log_prob_generator(samples):
