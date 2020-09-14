@@ -56,7 +56,7 @@ def main(symbol, exchange, start, end):
         step_size_update_fn = tfp.mcmc.make_simple_step_size_update_policy(num_adaptation_steps = 20000),
         state_gradients_are_stopped = True
       ),
-      bijector = [tfp.bijectors.RealVNP(num_masked = 2, shift_and_log_scale_fn = tfp.bijectors.real_nvp_default_template(hidden_layers = [512, 512]))]
+      bijector = [tfp.bijectors.RealNVP(num_masked = 2, shift_and_log_scale_fn = tfp.bijectors.real_nvp_default_template(hidden_layers = [512, 512]))]
     )
   );
   print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
