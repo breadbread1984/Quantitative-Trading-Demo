@@ -36,7 +36,7 @@ def main(symbol, exchange, start, end):
   plt.figure(figsize = (15,8));
   dates = [data[i].datetime.strftime('%Y-%m-%d') for i in range(5, len(data))];
   for i in range(hmm.n_components):
-    state = (latent_states_sequences == i); # index of day labeled with i
+    state = (latent_states_sequence == i); # index of day labeled with i
     plt.plot(data[state].close_price, dates[state], '.', label = 'latent state %d' % i, lw = 1);
     plt.legend();
     plt.grid(1);
