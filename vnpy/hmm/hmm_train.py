@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from math import log;
+from os.path import exists;
 from datetime import datetime;
 from vnpy.trader.database import database_manager;
 from vnpy.trader.constant import Interval, Exchange;
@@ -34,36 +35,40 @@ def main(symbol, exchange, start, end):
         log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
   X = tf.expand_dims(X, axis = 0); # X.shape = (1, len(data) - 5, 3)
   # 2) sample p(theta | X)
-  step_size = tf.Variable(0.5, dtype = tf.float32, trainable = False);
-  initial_probs = tf.constant([1./6, 1./6, 1./6, 1./6, 1./6, 1./6], dtype = tf.float32);
-  transition_probs = tf.constant([[1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
-                      [1./6, 1./6, 1./6, 1./6, 1./6, 1./6]], dtype = tf.float32);
-  observation_mean = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
-  observation_std = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
-  [states], kernel_results = tfp.mcmc.sample_chain(
-    num_results = 48000,
-    num_burnin_steps = 25000,
-    current_state = [tf.concat([initial_probs, 
-                                tf.reshape(transition_probs, (-1,)), 
-                                tf.reshape(observation_mean, (-1,)),
-                                tf.reshape(observation_std, (-1,))], axis = 0)],
-    kernel = tfp.mcmc.TransformedTransitionKernel(
-      inner_kernel = tfp.mcmc.HamiltonianMonteCarlo(
-        target_log_prob_fn = log_prob_generator(X),
-        num_leapfrog_steps = 2,
-        step_size = step_size,
-        step_size_update_fn = tfp.mcmc.make_simple_step_size_update_policy(num_adaptation_steps = 20000),
-        state_gradients_are_stopped = True
-      ),
-      bijector = [tfp.bijectors.RealNVP(num_masked = 2, shift_and_log_scale_fn = tfp.bijectors.real_nvp_default_template(hidden_layers = [512, 512]))]
-    )
-  );
-  print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
-  states = states[25000:]; # states.shape = (batch = 1, sample num, state_dim = 78)
+  if exists('samples.pkl'):
+    with open('samples.pkl', 'rb') as f:
+      states = tf.constant(pickle.loads(f.read()));
+  else:
+    step_size = tf.Variable(0.5, dtype = tf.float32, trainable = False);
+    initial_probs = tf.constant([1./6, 1./6, 1./6, 1./6, 1./6, 1./6], dtype = tf.float32);
+    transition_probs = tf.constant([[1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                                    [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                                    [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                                    [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                                    [1./6, 1./6, 1./6, 1./6, 1./6, 1./6],
+                                    [1./6, 1./6, 1./6, 1./6, 1./6, 1./6]], dtype = tf.float32);
+    observation_mean = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
+    observation_std = tf.constant(np.random.normal(size = (6,3)), dtype = tf.float32);
+    [states], kernel_results = tfp.mcmc.sample_chain(
+      num_results = 48000,
+      num_burnin_steps = 25000,
+      current_state = [tf.concat([initial_probs, 
+                                  tf.reshape(transition_probs, (-1,)), 
+                                  tf.reshape(observation_mean, (-1,)),
+                                  tf.reshape(observation_std, (-1,))], axis = 0)],
+      kernel = tfp.mcmc.TransformedTransitionKernel(
+        inner_kernel = tfp.mcmc.HamiltonianMonteCarlo(
+          target_log_prob_fn = log_prob_generator(X),
+          num_leapfrog_steps = 2,
+          step_size = step_size,
+          step_size_update_fn = tfp.mcmc.make_simple_step_size_update_policy(num_adaptation_steps = 20000),
+          state_gradients_are_stopped = True
+        ),
+        bijector = [tfp.bijectors.RealNVP(num_masked = 2, shift_and_log_scale_fn = tfp.bijectors.real_nvp_default_template(hidden_layers = [512, 512]))]
+      )
+    );
+    print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
+    states = states[25000:]; # states.shape = (batch = 1, sample num, state_dim = 78)
   # 3) find the mode of p(theta | X)
   mean = tf.math.reduce_mean(states, axis = [0, 1], keepdims = True); # sample_mean.shape = (1, 1, 78)
   var = tf.math.reduce_mean(tf.math.square(states - mean), axis = [0, 1], keepdims = True); # var.shape = (1, 1, state_dim = 78)
