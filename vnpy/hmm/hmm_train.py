@@ -10,6 +10,8 @@ import numpy as np;
 import pickle;
 import tensorflow as tf;
 import tensorflow_probability as tfp;
+import matplotlib.pyplot as plt;
+from IPython.core pylabtools import figsize;
 
 def main(symbol, exchange, start, end):
 
@@ -65,7 +67,16 @@ def main(symbol, exchange, start, end):
   # 3) find the mode of p(theta | X)
   mean = tf.math.reduce_mean(states, axis = [0, 1], keepdims = True); # sample_mean.shape = (1, 1, 78)
   var = tf.math.reduce_mean(tf.math.square(states - mean), axis = [0, 1], keepdims = True); # var.shape = (1, 1, state_dim = 78)
+  # reduce samples to 2-dim vectors for visualization
+  s, u, v = tf.linalg.svd(tf.transpose(tf.squeeze(states - mean, axis = 0))); # u.shape = (78, 78)
+  u = u[:, :2]; # u.shape = (78, 2)
+  low_dim = tf.linalg.matmul(u, tf.squeeze(states - mean, axis = 0), transpose_a = True, transpose_b = True) # low_dim.shape = (2, sample_num)
+  plt.figure(figsize(12.5, 4));
+  plt.title('mean shift trajectory on posterior distribution in 2D');
+  plt.scatter(x = low_dim[0,:].numpy(), y = low_dim[1,:].numpy(), c = 'b');
   mode = mean;
+  mode_low_dim = tf.linalg.matmul(u, tf.squeeze(mode - mean, axis = 0), transpose_a = True, transpose_b = True); # mode_low_dim.shape = (2, 1)
+  plt.Circle(mode_low_dim[:, 0].numpy(), 0.2, color = 'r');
   while True:
     mahalanobis_dist = tf.math.sqrt(tf.math.reduce_sum(tf.math.square(states - mode) / var, axis = -1)); # mahalanobis_dist.shape = (1, sample_num)
     idx = tf.argsort(mahalanobis_dist, axis = -1, direction = 'DESCENDING')[0,:states.shape[1]/1000]; # idx.shape = (sample num/1000)
@@ -73,8 +84,14 @@ def main(symbol, exchange, start, end):
     neighbors = tf.gather_nd(states, idx); # neighbors.shape = (sample num/1000, state dim = 78)
     new_mode = tf.reshape(tf.math.reduce_mean(neighbors, axis = 0), (1, 1, -1)); # mode.shape = (1, 1, state dim = 78)
     if tf.math.reduce_sum(tf.math.square(new_mode - mode)) < 1e-3: break;
+    new_mode_low_dim = tf.linalg.matmul(u, tf.squeeze(new_mode - mean, axis = 0), transpose_a = True, transpose_b = True); # new_mode_low_dim.shape = (2,1)
+    plt.Circle(new_mode_low_dim[:, 0].numpy(), 0.2, color = 'r');
+    plt.arrow(mode_low_dim[0,0], mode_low_dim[1,0], new_mode_low_dim[0,0] - mode_low_dim[0,0], new_mode_low_dim[1,0] - mode_low_dim[1,0], color = 'g');
     mode = new_mode;
-  
+    mode_low_dim = new_mode_low_dim;
+  plt.show();
+  with open('hmm.pkl', 'wb') as f:
+    f.write(pickle.dumps(new_mode.numpy()));
 
 def log_prob_generator(samples):
   # samples.shape = (1, num_steps, 3)
