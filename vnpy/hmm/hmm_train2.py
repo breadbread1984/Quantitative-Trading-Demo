@@ -48,4 +48,4 @@ def main(symbol, exchange, start, end):
 
 if __name__ == "__main__":
 
-  main('000301', Exchange.SZSE, datetime(2012,6,1), datetime(2016,4,7));
+  main('IF88', Exchange.CFFEX, datetime(2009,1,1), datetime(2020,8,15));

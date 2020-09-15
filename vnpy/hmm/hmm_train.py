@@ -95,6 +95,8 @@ def main(symbol, exchange, start, end):
     plt.arrow(mode_low_dim[0,0], mode_low_dim[1,0], new_mode_low_dim[0,0] - mode_low_dim[0,0], new_mode_low_dim[1,0] - mode_low_dim[1,0], color = 'g');
     mode = new_mode;
     mode_low_dim = new_mode_low_dim;
+  plt.legend();
+  plt.grid(1);
   plt.show();
   with open('hmm.pkl', 'wb') as f:
     f.write(pickle.dumps(new_mode.numpy()));
