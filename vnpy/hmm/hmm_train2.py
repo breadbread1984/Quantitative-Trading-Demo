@@ -35,9 +35,10 @@ def main(symbol, exchange, start, end):
   latent_states_sequence = hmm.predict(X);
   plt.figure(figsize = (15,8));
   dates = [data[i].datetime.strftime('%Y-%m-%d') for i in range(5, len(data))];
+  close_prices = [data[i].close_price for i in range(5, len(data))];
   for i in range(hmm.n_components):
     state = (latent_states_sequence == i); # index of day labeled with i
-    plt.plot(data[state].close_price, dates[state], '.', label = 'latent state %d' % i, lw = 1);
+    plt.plot(np.array(dates)[state], np.array(close_prices)[state], '.', label = 'latent state %d' % i, lw = 1);
     plt.legend();
     plt.grid(1);
   plt.show();
