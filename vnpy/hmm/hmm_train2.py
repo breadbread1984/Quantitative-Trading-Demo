@@ -1,0 +1,47 @@
+#!/usr/bin/python3
+
+from math import log;
+from datetime import datetime;
+from hmmlearn.hmm import GaussianHMM;
+from vnpy.trader.database import database_manager;
+from vnpy.trader.constant import Interval, Exchange;
+from vnpy.trader.object import HistoryRequest;
+from tsdata import tsdata_client;
+import numpy as np;
+import matplotlib.pyplot as plt;
+
+def main(symbol, exchange, start, end):
+
+  # 1) prepare observation X
+  data = database_manager.load_bar_data(symbol, exchange, Interval.DAILY, start, end);
+  if len(data) == 0:
+    # download data if not presented
+    if not tsdata_client.inited:
+      print('登录tushare');
+      succeed = tsdata_client.init();
+      if False == succeed:
+        print('tushare登录失败');
+        return;
+    req = HistoryRequest(symbol = symbol, exchange = exchange, interval = Interval.DAILY, start = start, end = end);
+    data = tsdata_client.query_history(req);
+    database_manager.save_bar_data(data);
+    data = database_manager.load_bar_data(symbol, exchange, Interval.DAILY, start, end);
+  X = [[log(data[i].close_price) - log(data[i-1].close_price),
+        log(data[i].close_price) - log(data[i-5].close_price),
+        log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
+  # 2) learn the HMM model
+  hmm = GaussianHMM(n_components = 6, covariance_type = 'diag', n_iter = 5000).fit(X);
+  # 3) visualize
+  latent_states_sequence = hmm.predict(X);
+  plt.figure(figsize = (15,8));
+  dates = [data[i].datetime.strftime('%Y-%m-%d') for i in range(5, len(data))];
+  for i in range(hmm.n_components):
+    state = (latent_states_sequences == i); # index of day labeled with i
+    plt.plot(data[state].close_price, dates[state], '.', label = 'latent state %d' % i, lw = 1);
+    plt.legend();
+    plt.grid(1);
+  plt.show();
+
+if __name__ == "__main__":
+
+  main('000301', Exchange.SZSE, datetime(2012,6,1), datetime(2016,4,7));
