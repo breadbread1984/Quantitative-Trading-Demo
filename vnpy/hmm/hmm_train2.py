@@ -42,6 +42,7 @@ def main(symbol, exchange, start, end):
     plt.plot(np.array(dates)[state], np.array(close_prices)[state], '.', label = 'latent state %d' % i, lw = 1);
     plt.legend();
     plt.grid(1);
+  plt.savefig('output.png');
   plt.show();
 
 if __name__ == "__main__":
