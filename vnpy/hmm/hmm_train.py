@@ -12,7 +12,7 @@ import pickle;
 import tensorflow as tf;
 import tensorflow_probability as tfp;
 import matplotlib.pyplot as plt;
-from IPython.core pylabtools import figsize;
+from IPython.core.pylabtools import figsize;
 
 def main(symbol, exchange, start, end):
 
