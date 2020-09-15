@@ -12,7 +12,6 @@ import pickle;
 import tensorflow as tf;
 import tensorflow_probability as tfp;
 import matplotlib.pyplot as plt;
-from IPython.core.pylabtools import figsize;
 
 def main(symbol, exchange, start, end):
 
@@ -76,7 +75,7 @@ def main(symbol, exchange, start, end):
   s, u, v = tf.linalg.svd(tf.transpose(tf.squeeze(states - mean, axis = 0))); # u.shape = (78, 78)
   u = u[:, :2]; # u.shape = (78, 2)
   low_dim = tf.linalg.matmul(u, tf.squeeze(states - mean, axis = 0), transpose_a = True, transpose_b = True) # low_dim.shape = (2, sample_num)
-  plt.figure(figsize(12.5, 4));
+  plt.figure(figsize = (12.5, 4));
   plt.title('mean shift trajectory on posterior distribution in 2D');
   plt.scatter(x = low_dim[0,:].numpy(), y = low_dim[1,:].numpy(), c = 'b');
   mode = mean;
