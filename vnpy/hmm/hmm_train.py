@@ -68,6 +68,8 @@ def main(symbol, exchange, start, end):
     );
     print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
     states = states[25000:]; # states.shape = (batch = 1, sample num, state_dim = 78)
+    with open('samples.pkl', 'wb') as f:
+      f.write(pickle.dumps(states.numpy()));
   # 3) find the mode of p(theta | X)
   mean = tf.math.reduce_mean(states, axis = [0, 1], keepdims = True); # sample_mean.shape = (1, 1, 78)
   var = tf.math.reduce_mean(tf.math.square(states - mean), axis = [0, 1], keepdims = True); # var.shape = (1, 1, state_dim = 78)
