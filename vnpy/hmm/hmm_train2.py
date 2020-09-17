@@ -2,6 +2,7 @@
 
 from math import log;
 from datetime import datetime;
+import pickle;
 from hmmlearn.hmm import GaussianHMM;
 from vnpy.trader.database import database_manager;
 from vnpy.trader.constant import Interval, Exchange;
@@ -31,6 +32,8 @@ def main(symbol, exchange, start, end):
         log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
   # 2) learn the HMM model
   hmm = GaussianHMM(n_components = 6, covariance_type = 'diag', n_iter = 5000).fit(X);
+  with open('hmm.pkl', 'wb') as f:
+    pickle.dump(hmm, f);
   # 3) visualize
   latent_states_sequence = hmm.predict(X);
   plt.figure(figsize = (15,8));
@@ -38,17 +41,17 @@ def main(symbol, exchange, start, end):
   close_prices = [data[i].close_price for i in range(5, len(data))];
   print(len(close_prices));
   for i in range(hmm.n_components):
-    state = (latent_states_sequence == i); # index of day labeled with i
-    plt.plot(np.array(dates)[state], np.array(close_prices)[state], '.', label = 'latent state %d' % i, lw = 1);
+    idx = (latent_states_sequence == i); # index of day labeled with i
+    plt.plot(np.array(dates)[idx], np.array(close_prices)[idx], '.', label = 'latent idx %d' % i, lw = 1);
     plt.legend();
     plt.grid(1);
   plt.axis([0, len(close_prices), min(close_prices), max(close_prices)]);
   plt.savefig('colored_k_bar.png');
   plt.show();
   for i in range(hmm.n_components):
-    state = (latent_states_sequence == i); # index of day labeled with i
-    state = np.append(False, state[:-1]); # index of next day of the day labeled with i, because reward comes one day after
-    plt.plot(np.exp(np.array(X)[state, 0].cumsum()), label = 'latent_state %d' % i);
+    idx = (latent_states_sequence == i); # index of day labeled with i
+    idx = np.append(False, idx[:-1]); # index of the next day of the day labeled with i, because if you trade on day with label i the reward comes one day after
+    plt.plot(np.exp(np.array(X)[idx, 0].cumsum()), label = 'latent_state %d' % i);
     plt.legend();
     plt.grid(1);
   plt.savefig('return_curve.png');
