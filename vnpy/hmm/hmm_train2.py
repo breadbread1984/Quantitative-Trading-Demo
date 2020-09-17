@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt;
 def main(symbol, exchange, start, end):
 
   # 1) prepare observation X
-  data = database_manager.load_bar_data(symbol, exchange, Interval.DAILY, start, end);
+  data = database_manager.load_bar_data(symbol, exchange, Interval.MINUTE, start, end);
   if len(data) == 0:
     # download data if not presented
     if not tsdata_client.inited:
@@ -22,10 +22,10 @@ def main(symbol, exchange, start, end):
       if False == succeed:
         print('tushare登录失败');
         return;
-    req = HistoryRequest(symbol = symbol, exchange = exchange, interval = Interval.DAILY, start = start, end = end);
+    req = HistoryRequest(symbol = symbol, exchange = exchange, interval = Interval.MINUTE, start = start, end = end);
     data = tsdata_client.query_history(req);
     database_manager.save_bar_data(data);
-    data = database_manager.load_bar_data(symbol, exchange, Interval.DAILY, start, end);
+    data = database_manager.load_bar_data(symbol, exchange, Interval.MINUTE, start, end);
   X = [[log(data[i].close_price) - log(data[i-1].close_price),
         log(data[i].close_price) - log(data[i-5].close_price),
         log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
@@ -47,6 +47,7 @@ def main(symbol, exchange, start, end):
   plt.show();
   for i in range(hmm.n_components):
     state = (latent_states_sequence == i); # index of day labeled with i
+    state = np.append(False, state[:-1]); # index of next day of the day labeled with i, because reward comes one day after
     plt.plot(np.exp(np.array(X)[state, 0].cumsum()), label = 'latent_state %d' % i);
     plt.legend();
     plt.grid(1);
