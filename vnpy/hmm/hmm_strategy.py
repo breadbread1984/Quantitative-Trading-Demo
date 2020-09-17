@@ -41,7 +41,7 @@ class HMMStrategy(CtaTemplate):
     if not self.am.inited: return;
     X = [[log(self.am.close[i]) - log(self.am.close[i-1]),
           log(self.am.close[i]) - log(self.am.close[i-5]),
-          log(self.am.high[i]) - log(self.am.low[i])] for i in range(5, self.am.close().shape[0])];
+          log(self.am.high[i]) - log(self.am.low[i])] for i in range(5, self.am.close.shape[0])];
     colors = self.hmm.predict(X);
     if colors[-1] in [3, 4]:
       self.buy(bar.close_price, 1, stop = True);
