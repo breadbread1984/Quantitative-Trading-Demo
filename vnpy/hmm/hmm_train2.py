@@ -43,7 +43,14 @@ def main(symbol, exchange, start, end):
     plt.legend();
     plt.grid(1);
   plt.axis([0, len(close_prices), min(close_prices), max(close_prices)]);
-  plt.savefig('output.png');
+  plt.savefig('colored_k_bar.png');
+  plt.show();
+  for i in range(hmm.n_components):
+    state = (latent_states_sequence == i); # index of day labeled with i
+    plt.plt(np.exp(np.array(X)[state, 0].cumsum()), label = 'latent_state %d' % i);
+    plt.legend();
+    plt.grid(1);
+  plt.savefig('return_curve.png');
   plt.show();
 
 if __name__ == "__main__":
