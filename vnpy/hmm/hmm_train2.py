@@ -47,7 +47,7 @@ def main(symbol, exchange, start, end):
   plt.show();
   for i in range(hmm.n_components):
     state = (latent_states_sequence == i); # index of day labeled with i
-    plt.plt(np.exp(np.array(X)[state, 0].cumsum()), label = 'latent_state %d' % i);
+    plt.plot(np.exp(np.array(X)[state, 0].cumsum()), label = 'latent_state %d' % i);
     plt.legend();
     plt.grid(1);
   plt.savefig('return_curve.png');
