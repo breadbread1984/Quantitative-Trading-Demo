@@ -32,6 +32,7 @@ def main(symbol, exchange, start, end):
         log(data[i].high_price) - log(data[i].low_price)] for i in range(5, len(data))]; # X.shape = (len(data) - 5, 3)
   # 2) learn the HMM model
   hmm = GaussianHMM(n_components = 6, covariance_type = 'diag', n_iter = 5000).fit(X);
+  print('hidden markov model %s converged' % ('is' if hmm.monitor_.converged else 'is not'));
   with open('hmm.pkl', 'wb') as f:
     pickle.dump(hmm, f);
   # 3) visualize
