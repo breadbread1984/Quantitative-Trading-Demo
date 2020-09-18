@@ -5,14 +5,13 @@ from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager, TickD
 
 def PositionPredictor(days = 10):
 
-  inputs = tf.keras.Input((days + 2,)); # inputs.shape = (batch, days + 2)
+  inputs = tf.keras.Input((days + 3,)); # inputs.shape = (batch, days + 3)
   results = tf.keras.layers.Dense(units = 1, activation = tf.math.tanh)(inputs); # results.shape = (batch, 1)
   return tf.keras.Model(inputs = inputs, outputs = results);
 
 class MaxSharpeStrategy(CtaTemplate):
 
   M = 10;
-  optimizer = tf.keras.optimizers.Adam(tf.keras.optimizers.schedules.ExponentialDecay(1e-3, decay_steps = 60000, decay_rate = 0.5));
   predictor = PositionPredictor(M);
   predictor.load_weights('weights.h5');
   parameters = ["M"];
@@ -22,7 +21,7 @@ class MaxSharpeStrategy(CtaTemplate):
     super(MaxSharpeStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
     self.am = ArrayManager(3 + self.M); # am.shape = (3 + M)
-    self.F_tm1 = 0;
+    self.F_tm1 = tf.zeros((1, self.M + 3)); # F_tm1.shape = (1, M + 3)
 
   def on_init(self):
 
@@ -47,10 +46,11 @@ class MaxSharpeStrategy(CtaTemplate):
     self.cancel_all();
     self.am.update_bar(bar);
     if not am.inited: return;
-    xt = tf.ones((self.M + 3), dtype = tf.float32);
+    xt = tf.ones((self.M + 3), dtype = tf.float32); # xt.shape = (M + 3)
     for i in range(1, self.M + 2):
       xt[i] = self.am.close[i] - self.am.close[i - 1];
-    xt[self.M + 2] = self.F_tm1;
+    xt[self.M + 2] = self.F_tm1[0, 0];
+    xt = tf.expand_dims(xt, axis = 0); # xt.shape = (batch = 1, M + 3)
     F_t = self.predictor(xt);
     pos = int(F_t * self.mu);
     self.F_tm1 = F_t;
