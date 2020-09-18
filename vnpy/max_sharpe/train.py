@@ -23,7 +23,7 @@ def train():
   for i in range(100):
     with tf.GradientTape() as tape:
       for i in range(len(r) - 11 + 1):
-        xt = np.ones((13,), dtype = tf.float32);
+        xt = np.ones((13,), dtype = np.float32);
         xt[1:12] = r[i:i+11];
         xt[12] = F_tm1;
         xt = tf.expand_dims(xt, axis = 0); # xt.shape = (1, 13)
