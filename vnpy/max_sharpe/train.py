@@ -34,6 +34,7 @@ def train():
       loss = -sharp_rate;
     grads = tape.gradient(loss, predictor.trainable_variables);
     optimizer.apply_gradients(zip(grads, predictor.trainable_variables));
+    print('%d sharpe rate: %f' % (optimizer.iterations, sharp_rate));
     if tf.equal(optimizer.iterations % 10, 0):
       checkpoint.save(join('checkpoints', 'ckpt'));
   predictor.save_weights('weights.h5');
