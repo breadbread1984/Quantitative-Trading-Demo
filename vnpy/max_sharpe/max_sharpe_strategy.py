@@ -2,7 +2,7 @@
 
 from os.path import exists;
 import tensorflow as tf;
-from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager, TickData;
+from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager, BarData, TradeData, OrderData, StopOrder, TickData;
 
 def PositionPredictor(days = 10):
 
