@@ -28,10 +28,10 @@ def train():
         R.append(mu * (F_tm1 * r[i] - delta * tf.math.abs(F_t - F_tm1)));
         F_tm1 = F_t;
       sharpe_rate = tf.math.reduce_mean(R) / tf.math.sqrt(tf.math.reduce_mean(tf.math.square(R)) - tf.math.square(tf.math.reduce_mean(R)));
-      loss = -sharp_rate;
+      loss = -sharpe_rate;
     grads = tape.gradient(loss, predictor.trainable_variables);
     optimizer.apply_gradients(zip(grads, predictor.trainable_variables));
-    print('%d sharpe rate: %f' % (optimizer.iterations, sharp_rate));
+    print('%d sharpe rate: %f' % (optimizer.iterations, sharpe_rate));
     if tf.equal(optimizer.iterations % 10, 0):
       checkpoint.save(join('checkpoints', 'ckpt'));
   predictor.save_weights('weights.h5');
