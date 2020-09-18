@@ -90,7 +90,12 @@ if __name__ == "__main__":
     inverse = False);
   engine.add_strategy(HMMStrategy, {});
   engine.load_data();
-  engine.run_backtesting();
+  engine.strategy.on_init()
+  engine.strategy.inited = True;
+  engine.strategy.on_start();
+  engine.strategy.trading = True;
+  for data in engine.history_data[0:]:
+    engine.new_bar(data);
   engine.calculate_result();
   statistics = engine.calculate_statistics(output = True);
   engine.show_chart();
