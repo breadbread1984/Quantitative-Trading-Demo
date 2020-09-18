@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from os.path import exists;
 import tensorflow as tf;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager, TickData;
 
@@ -13,7 +14,8 @@ class MaxSharpeStrategy(CtaTemplate):
 
   M = 10;
   predictor = PositionPredictor(M);
-  predictor.load_weights('weights.h5');
+  if exists('weights.h5'):
+    predictor.load_weights('weights.h5');
   parameters = ["M"];
 
   def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
