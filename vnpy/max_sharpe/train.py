@@ -20,8 +20,8 @@ def train():
   F_tm1 = tf.zeros((1,1), dtype = tf.float32);
   history_length = len(bars);
   r = [bars[i].close_price - bars[i-1].close_price for i in range(1, len(bars))]; # r.shape = (history_length - 1,)
-  R = list();
   for i in range(100):
+    R = list();
     with tf.GradientTape() as tape:
       for i in range(len(r) - 11 + 1):
         xt = tf.concat([tf.ones((1,1), dtype = tf.float32), tf.expand_dims(r[i:i+11], axis = 0), F_tm1], axis = -1); # xt.shape = (1, 13)
