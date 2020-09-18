@@ -13,6 +13,7 @@ def train():
   optimizer = tf.keras.optimizers.Adam(tf.keras.optimizers.schedules.ExponentialDecay(1e-3, decay_steps = 60000, decay_rate = 0.5));
   predictor = PositionPredictor(10);
   checkpoint = tf.train.Checkpoint(model = predictor, optimizer = optimizer);
+  checkpoint.restore(tf.train.latest_checkpoint('checkpoints'));
   bars = database_manager.load_bar_data('IF88', Exchange.CFFEX, Interval.MINUTE, datetime(2009,1,1), datetime(2020,8,8));
   mu = 1000000 / 300; # how many possible positions
   delta = 0.5 / 10000; # rate
