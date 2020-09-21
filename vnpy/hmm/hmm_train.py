@@ -70,6 +70,7 @@ def main(symbol, exchange, start, end):
     states = states[25000:]; # states.shape = (sample num, state_dim = 78)
     with open('samples.pkl', 'wb') as f:
       f.write(pickle.dumps(states.numpy()));
+  print("get %d samples" % (states.shape[0]));
   # 3) find the mode of p(theta | X)
   mean = tf.math.reduce_mean(states, axis = [0], keepdims = True); # sample_mean.shape = (1, 78)
   var = tf.math.reduce_mean(tf.math.square(states - mean), axis = [0], keepdims = True); # var.shape = (1, state_dim = 78)
@@ -85,7 +86,7 @@ def main(symbol, exchange, start, end):
   plt.Circle(mode_low_dim[:, 0].numpy(), 0.2, color = 'r');
   while True:
     mahalanobis_dist = tf.math.sqrt(tf.math.reduce_sum(tf.math.square(states - mode) / var, axis = -1)); # mahalanobis_dist.shape = (sample_num)
-    idx = tf.argsort(mahalanobis_dist, direction = 'DESCENDING')[:states.shape[1]/1000]; # idx.shape = (sample num/1000)
+    idx = tf.argsort(mahalanobis_dist, direction = 'DESCENDING')[:int(states.shape[1]/1000)]; # idx.shape = (sample num/1000)
     neighbors = tf.gather(states, idx); # neighbors.shape = (sample num/1000, state dim = 78)
     new_mode = tf.math.reduce_mean(neighbors, axis = 0, keepdims = True); # mode.shape = (1, state dim = 78)
     if tf.math.reduce_sum(tf.math.square(new_mode - mode)) < 1e-3: break;
