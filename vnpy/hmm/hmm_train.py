@@ -67,28 +67,27 @@ def main(symbol, exchange, start, end):
       )
     );
     print('acceptance rate: %f' % tf.math.reduce_mean(tf.cast(kernel_results.inner_results.is_accepted, dtype = tf.float32)));
-    states = states[25000:]; # states.shape = (batch = 1, sample num, state_dim = 78)
+    states = states[25000:]; # states.shape = (sample num, state_dim = 78)
     with open('samples.pkl', 'wb') as f:
       f.write(pickle.dumps(states.numpy()));
   # 3) find the mode of p(theta | X)
-  mean = tf.math.reduce_mean(states, axis = [0, 1], keepdims = True); # sample_mean.shape = (1, 1, 78)
-  var = tf.math.reduce_mean(tf.math.square(states - mean), axis = [0, 1], keepdims = True); # var.shape = (1, 1, state_dim = 78)
+  mean = tf.math.reduce_mean(states, axis = [0], keepdims = True); # sample_mean.shape = (1, 78)
+  var = tf.math.reduce_mean(tf.math.square(states - mean), axis = [0], keepdims = True); # var.shape = (1, state_dim = 78)
   # reduce samples to 2-dim vectors for visualization
-  s, u, v = tf.linalg.svd(tf.transpose(tf.squeeze(states - mean, axis = 0))); # u.shape = (78, 78)
+  s, u, v = tf.linalg.svd(tf.transpose(states - mean)); # u.shape = (78, 78)
   u = u[:, :2]; # u.shape = (78, 2)
-  low_dim = tf.linalg.matmul(u, tf.squeeze(states - mean, axis = 0), transpose_a = True, transpose_b = True) # low_dim.shape = (2, sample_num)
+  low_dim = tf.linalg.matmul(u, states - mean, transpose_a = True, transpose_b = True) # low_dim.shape = (2, sample_num)
   plt.figure(figsize = (12.5, 4));
   plt.title('mean shift trajectory on posterior distribution in 2D');
   plt.scatter(x = low_dim[0,:].numpy(), y = low_dim[1,:].numpy(), c = 'b');
-  mode = mean;
-  mode_low_dim = tf.linalg.matmul(u, tf.squeeze(mode - mean, axis = 0), transpose_a = True, transpose_b = True); # mode_low_dim.shape = (2, 1)
+  mode = mean; # mode.shape = (1, 78)
+  mode_low_dim = tf.linalg.matmul(u, mode - mean, transpose_a = True, transpose_b = True); # mode_low_dim.shape = (2, 1)
   plt.Circle(mode_low_dim[:, 0].numpy(), 0.2, color = 'r');
   while True:
-    mahalanobis_dist = tf.math.sqrt(tf.math.reduce_sum(tf.math.square(states - mode) / var, axis = -1)); # mahalanobis_dist.shape = (1, sample_num)
-    idx = tf.argsort(mahalanobis_dist, axis = -1, direction = 'DESCENDING')[0,:states.shape[1]/1000]; # idx.shape = (sample num/1000)
-    idx = tf.stack([tf.zeros_like(idx), idx], axis = -1); # idx.shape = (sample num/1000, 2)
-    neighbors = tf.gather_nd(states, idx); # neighbors.shape = (sample num/1000, state dim = 78)
-    new_mode = tf.reshape(tf.math.reduce_mean(neighbors, axis = 0), (1, 1, -1)); # mode.shape = (1, 1, state dim = 78)
+    mahalanobis_dist = tf.math.sqrt(tf.math.reduce_sum(tf.math.square(states - mode) / var, axis = -1)); # mahalanobis_dist.shape = (sample_num)
+    idx = tf.argsort(mahalanobis_dist, direction = 'DESCENDING')[:states.shape[1]/1000]; # idx.shape = (sample num/1000)
+    neighbors = tf.gather(states, idx); # neighbors.shape = (sample num/1000, state dim = 78)
+    new_mode = tf.math.reduce_mean(neighbors, axis = 0, keepdims = True); # mode.shape = (1, state dim = 78)
     if tf.math.reduce_sum(tf.math.square(new_mode - mode)) < 1e-3: break;
     new_mode_low_dim = tf.linalg.matmul(u, tf.squeeze(new_mode - mean, axis = 0), transpose_a = True, transpose_b = True); # new_mode_low_dim.shape = (2,1)
     plt.Circle(new_mode_low_dim[:, 0].numpy(), 0.2, color = 'r');
