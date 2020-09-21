@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from os.path import exists;
+from datetime import datetime;
 import tensorflow as tf;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager, BarData, TradeData, OrderData, StopOrder, TickData;
 from vnpy.trader.constant import Interval, Exchange;
