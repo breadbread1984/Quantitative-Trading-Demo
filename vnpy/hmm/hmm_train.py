@@ -90,7 +90,7 @@ def main(symbol, exchange, start, end):
     neighbors = tf.gather(states, idx); # neighbors.shape = (sample num/1000, state dim = 78)
     new_mode = tf.math.reduce_mean(neighbors, axis = 0, keepdims = True); # mode.shape = (1, state dim = 78)
     if tf.math.reduce_sum(tf.math.square(new_mode - mode)) < 1e-3: break;
-    new_mode_low_dim = tf.linalg.matmul(u, tf.squeeze(new_mode - mean, axis = 0), transpose_a = True, transpose_b = True); # new_mode_low_dim.shape = (2,1)
+    new_mode_low_dim = tf.linalg.matmul(u, new_mode - mean, transpose_a = True, transpose_b = True); # new_mode_low_dim.shape = (2,1)
     plt.Circle(new_mode_low_dim[:, 0].numpy(), 0.2, color = 'r');
     plt.arrow(mode_low_dim[0,0], mode_low_dim[1,0], new_mode_low_dim[0,0] - mode_low_dim[0,0], new_mode_low_dim[1,0] - mode_low_dim[1,0], color = 'g');
     mode = new_mode;
