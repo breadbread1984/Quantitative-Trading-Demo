@@ -2,6 +2,7 @@
 
 from os.path import exists;
 from datetime import datetime;
+import numpy as np;
 import tensorflow as tf;
 from vnpy.app.cta_strategy import CtaTemplate, BarGenerator, ArrayManager, BarData, TradeData, OrderData, StopOrder, TickData;
 from vnpy.trader.constant import Interval, Exchange;
@@ -49,7 +50,7 @@ class MaxSharpeStrategy(CtaTemplate):
     self.cancel_all();
     self.am.update_bar(bar);
     if not self.am.inited: return;
-    xt = tf.ones((self.M + 3), dtype = tf.float32); # xt.shape = (M + 3)
+    xt = np.ones((self.M + 3), dtype = np.float32); # xt.shape = (M + 3)
     for i in range(1, self.M + 2):
       xt[i] = self.am.close[i] - self.am.close[i - 1];
     xt[self.M + 2] = self.pos / self.mu;
