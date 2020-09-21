@@ -23,7 +23,6 @@ class MaxSharpeStrategy(CtaTemplate):
     super(MaxSharpeStrategy, self).__init__(cta_engine, strategy_name, vt_symbol, setting);
     self.bg = BarGenerator(self.on_bar);
     self.am = ArrayManager(3 + self.M); # am.shape = (3 + M)
-    self.F_tm1 = tf.zeros((1, self.M + 3)); # F_tm1.shape = (1, M + 3)
 
   def on_init(self):
 
@@ -51,11 +50,10 @@ class MaxSharpeStrategy(CtaTemplate):
     xt = tf.ones((self.M + 3), dtype = tf.float32); # xt.shape = (M + 3)
     for i in range(1, self.M + 2):
       xt[i] = self.am.close[i] - self.am.close[i - 1];
-    xt[self.M + 2] = self.F_tm1[0, 0];
+    xt[self.M + 2] = self.pos / self.mu;
     xt = tf.expand_dims(xt, axis = 0); # xt.shape = (batch = 1, M + 3)
     F_t = self.predictor(xt);
     pos = int(F_t * self.mu);
-    self.F_tm1 = F_t;
     if self.pos > 0 and pos > 0:
       if pos > self.pos:
         self.buy(bar.close_price, pos - self.pos, stop = True);
