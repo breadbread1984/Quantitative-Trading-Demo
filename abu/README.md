@@ -1,6 +1,25 @@
 # Quantitative-Trading-Demo
 This project shows how to do quant trade with abupy
 
+## prerequisite
+
+abupy is outdated and lack of maintainance. you have to update line 34 of
+
+```shell
+/path/to/site-package/abupy/CoreBu/ABuPdHelper.py
+```
+
+from 
+
+```python
+from pandas.core.window import EWM
+```
+to
+
+```python
+from pandas.core.window import ewm
+```
+
 ## time picking demo
 
 generate orders according to buy and sell strategies.
