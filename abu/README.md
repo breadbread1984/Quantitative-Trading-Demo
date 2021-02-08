@@ -3,7 +3,7 @@ This project shows how to do quant trade with abupy
 
 ## prerequisite
 
-abupy is outdated and lack of maintainance. you have to update line 34 of
+abupy is outdated and lack of maintainance. to run the code with the latest version of pandas, you have to update line 34 of
 
 ```shell
 /path/to/site-package/abupy/CoreBu/ABuPdHelper.py
