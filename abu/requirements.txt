@@ -20,5 +20,9 @@ patsy
 six
 setuptools
 psutil
+ipython
+ipywidgets
+bokeh
+toolz
 abupy
 
